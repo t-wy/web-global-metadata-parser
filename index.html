@@ -1,0 +1,56 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="keywords" content="unity global metadata il2cpp dumper reverse engineering"/>
+		<meta name="description" content="A global-metadata.dat Reader that dumps contents of global-metadata.dat locally.">
+		<meta property="og:title" content="Global-metadata.dat Reader">
+		<meta property="og:description" content="A global-metadata.dat Reader that dumps contents of global-metadata.dat locally.">
+		<meta property="og:url" content="https://twy.name/Tools/global-metadata">
+		<meta property="og:type" content="article">
+		<title>Global-metadata.dat Reader (α)</title>
+		<link rel="canonical" href="https://twy.name/Tools/global-metadata">
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "Article",
+				"headline": "Global-metadata.dat Reader",
+				"description": "A global-metadata.dat Reader that dumps contents of global-metadata.dat locally.",
+				"url": "https://twy.name/Tools/global-metadata",
+				"author": [
+					{
+						"@type": "Person",
+						"name": "TWY"
+					}
+				]
+			}
+		</script>
+		<link rel="stylesheet" type="text/css" href="../file_handler.css">
+	</head>
+	<body>
+		<script src="../byte_reader.js"></script>
+		<script src="global-metadata.js"></script>
+		<script src="dumper.js"></script>
+		<script>
+			async function handleFile(entry) {
+				var bytes = entry.value;
+				var reader = new LittleEndianReader(bytes);
+				var metadata = new GlobalMetadata(reader);
+				window.metadata = metadata;
+				entry.metadata = metadata;
+				dump_images(entry);
+			}
+
+			async function handleEntry(entry) {
+				if (entry.type === "image") {
+					dump_imagedef(entry);
+				} else if (entry.type === "imagedef") {
+					dump_imagedef_namespace(entry);
+				} else if (entry.type === "typedef") {
+					dump_typedef(entry);
+				}
+			}
+		</script>
+		<script src="../file_handler.js"></script>
+	</body>
+</html>
