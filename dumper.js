@@ -591,7 +591,7 @@ function ResolveSlice(metadata, content) {
         } else if (type == 0x0A) { // IL2CPP_TYPE_I8
             return reader.readLong();
         } else if (type == 0x0C) { // IL2CPP_TYPE_R4
-            return reader.readFloat();
+            return reader.readSingle();
         } else if (type == 0x0D) { // IL2CPP_TYPE_R8
             return reader.readDouble();
         } else if (type == 0x0E) { // IL2CPP_TYPE_STRING
@@ -655,14 +655,15 @@ function ResolveSlice(metadata, content) {
         var propertyCount = read_compressed_uint32(reader);
         var arguments = [];
         for (var i = 0; i < argumentCount; i++) {
-            arguments.push(ReadAttributeDataValue());
+            arguments.push([ReadAttributeDataValue()]);
         }
-        var fields = [];
+        // var fields = [];
         for (var i = 0; i < fieldCount; i++) {
             var temp = ReadAttributeDataValue();
             var [declaring, fieldIndex] = ReadCustomAttributeNamedArgumentClassAndIndex(typeDef);
             var fieldDef = metadata.fieldDefinitions[declaring.fieldStart + fieldIndex];
-            fields.push([
+            // fields.push([
+            arguments.push([
                 fieldDef.name,
                 temp
             ]);
@@ -672,7 +673,8 @@ function ResolveSlice(metadata, content) {
             var temp = ReadAttributeDataValue();
             var [declaring, propertyIndex] = ReadCustomAttributeNamedArgumentClassAndIndex(typeDef);
             var propertyDef = metadata.propertyDefs[declaring.propertyStart + propertyIndex];
-            fields.push([
+            // fields.push([
+            arguments.push([
                 propertyDef.name,
                 temp
             ]);
@@ -681,12 +683,27 @@ function ResolveSlice(metadata, content) {
             ctorIndex: ctorIndices[j],
             typeDef: typeDef,
             arguments: arguments,
-            fields: fields,
+            // fields: fields,
             properties: properties
         });
     }
     return attributes;
 }
+
+function AttributeDataToString(blobValue)
+{
+    //TODO enum
+    if (blobValue === null) {
+        return "null";
+    }
+    if (typeof blobValue === "string") {
+        return JSON.stringify(blobValue);
+    } else if (Array.isArray(blobValue)) {
+        return `new[] { ${blobValue.map(AttributeDataToString).join(", ")} }`;
+    }
+    return blobValue;
+}
+
 
 function ResolveSliceAsString(metadata, content) {
     var result = ResolveSlice(metadata, content);
@@ -699,7 +716,14 @@ function ResolveSliceAsString(metadata, content) {
         if (entry.arguments.length === 0) {
             entries.push(`[${typeName}]`);
         } else {
-            entries.push(`[${typeName}(${entry.arguments.join(", ")})]`);
+            entries.push(`[${typeName}(${entry.arguments.map(function (arg) {
+                if (arg.length === 1) {
+                    return AttributeDataToString(arg[0]);
+                } else {
+                    // 2
+                    return `${arg[0]} = ${arg[1]}`;
+                }
+            }).join(", ")})]`);
         }
     })
     return entries;
@@ -722,6 +746,9 @@ function GetCustomAttribute(/*Il2CppImageDefinition*/ imageDef, /*int*/ customAt
     var attributeIndex;
     if (metadata.header.version > 24) {
         attributeIndex = metadata.attributeTypeRangesDict[imageDef.nameIndex][token];
+        if (attributeIndex === undefined) {
+            attributeIndex = -1;
+        }
     } else {
         attributeIndex = customAttributeIndex;
     }
@@ -731,7 +758,7 @@ function GetCustomAttribute(/*Il2CppImageDefinition*/ imageDef, /*int*/ customAt
         if (metadata.header.version < 29)
         {
             var methodPointer = executor.customAttributeGenerators[attributeIndex];
-            var fixedMethodPointer = `il2Cpp.GetRVA(${methodPointer})`;
+            // var fixedMethodPointer = `il2Cpp.GetRVA(${methodPointer})`;
             var attributeTypeRange = metadata.attributeTypeRanges[attributeIndex];
             var sb = [];
             for (var i = 0; i < attributeTypeRange.count; i++)
