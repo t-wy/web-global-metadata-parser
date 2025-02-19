@@ -136,35 +136,284 @@ function GlobalMetadata(reader) {
         resolve_name(temp);
     }
 
-    this.knownTypes = {};
+    var knownTypes = {}; // [typeName, isKeyword]
+    var knownFields = {}; // [attrs, typeName, isKeyword]
     // window.metadata = this;
     // try resolve common types
-    for (var temp of this.typeDefinitions) {
-        if (temp.namespace === "UnityEngine.UI") {
-            if (temp.name === "Text") {
-                for (var i = temp.propertyStart; i < temp.propertyStart + temp.property_count; ++i) {
-                    var prop = this.propertyDefinitions[i];
-                    var typeIndex = null;
-                    if (prop.get >= 0) {
-                        typeIndex = this.methodDefinitions[temp.methodStart + prop.get].returnType;
-                    } else if (prop.set >= 0) {
-                        typeIndex = this.parameterDefinitions[this.methodDefinitions[temp.methodStart + prop.set].parameterStart].typeIndex;
-                    }
-                    if (prop.name === "text") {
-                        this.knownTypes[typeIndex] = "string";
-                    } else if (prop.name === "fontSize") {
-                        this.knownTypes[typeIndex] = "int";
-                    } else if (prop.name === "supportRichText") {
-                        this.knownTypes[typeIndex] = "bool";
-                    } else if (prop.name === "lineSpacing") {
-                        this.knownTypes[typeIndex] = "float";
-                    }
+    var knownTypeLocation = {
+        "UnityEngine.UI": {
+            "Text": {
+                "Field": {
+                    "m_Text": ["protected", "string", true],
+                    "m_DisableFontTextureRebuiltCallback": ["protected", "bool", true],
+                },
+                "Property": {
+                    "font": ["Font", false],
+                    "text": ["string", true],
+                    "fontSize": ["int", true],
+                    "supportRichText": ["bool", true],
+                    "lineSpacing": ["float", true],
+                },
+                "Method": {
+                    ".ctor": ["void", true],
+                }
+            },
+            "ColorBlock": {
+                "Field": {
+                    "m_NormalColor": ["private", "Color", false],
+                    "m_FadeDuration": ["private", "float", true],
+                },
+                "Property": {
+                    "normalColor": ["Color", false],
+                },
+            }
+        },
+        "UnityEngine": {
+            "AssetBundle": {
+                "Method": {
+                    "LoadAsset": ["Object", true],
+                    "GetAllScenePaths": ["string[]", true],
                 }
             }
-        } else if (temp.namespace === "System") {
-
+        },
+        "UnityEngine.XR": {
+            "XRNodeState": {
+                "Property": {
+                    "uniqueID": ["ulong", true],
+                }
+            }
+        },
+        "Unity.Burst.Intrinsics": {
+            "Common": {
+                "Method": {
+                    "umul128": ["ulong", true],
+                }
+            },
+            "v128": {
+                "Field": {
+                    "Byte0": ["public", "byte", true],
+                    "SByte0": ["public", "sbyte", true],
+                    "UShort0": ["public", "ushort", true],
+                    "SShort0": ["public", "short", true],
+                    "UInt0": ["public", "uint", true],
+                    "SInt0": ["public", "int", true],
+                    "ULong0": ["public", "ulong", true],
+                    "SLong0": ["public", "long", true],
+                    "Float0": ["public", "float", true],
+                    "Double0": ["public", "double", true],
+                    "Lo64": ["public", "v64", true],
+                },
+            },
+            "v256": {
+                "Field": {
+                    "Lo128": ["public", "v128", true],
+                },
+            },
+            "V64DebugView": {
+                "Field": {
+                    "m_Value": ["private", "v64", true],
+                },
+                "Method": {
+                    "get_Byte": ["byte[]", true],
+                    "get_SByte": ["sbyte[]", true],
+                    "get_UShort": ["ushort[]", true],
+                    "get_SShort": ["short[]", true],
+                    "get_UInt": ["uint[]", true],
+                    "get_SInt": ["int[]", true],
+                    "get_Float": ["float[]", true],
+                    "get_SLong": ["long[]", true],
+                    "get_ULong": ["ulong[]", true],
+                    "get_Double": ["double[]", true],
+                }
+            },
+            "V128DebugView": {
+                "Field": {
+                    "m_Value": ["private", "v128", true],
+                },
+                "Method": {
+                    "get_Byte": ["byte[]", true],
+                    "get_SByte": ["sbyte[]", true],
+                    "get_UShort": ["ushort[]", true],
+                    "get_SShort": ["short[]", true],
+                    "get_UInt": ["uint[]", true],
+                    "get_SInt": ["int[]", true],
+                    "get_Float": ["float[]", true],
+                    "get_SLong": ["long[]", true],
+                    "get_ULong": ["ulong[]", true],
+                    "get_Double": ["double[]", true],
+                }
+            },
+            "V256DebugView": {
+                "Field": {
+                    "m_Value": ["private", "v256", true],
+                },
+                "Method": {
+                    "get_Byte": ["byte[]", true],
+                    "get_SByte": ["sbyte[]", true],
+                    "get_UShort": ["ushort[]", true],
+                    "get_SShort": ["short[]", true],
+                    "get_UInt": ["uint[]", true],
+                    "get_SInt": ["int[]", true],
+                    "get_Float": ["float[]", true],
+                    "get_SLong": ["long[]", true],
+                    "get_ULong": ["ulong[]", true],
+                    "get_Double": ["double[]", true],
+                }
+            }
+        },
+        "System": {
+            "GuidEx": {
+                "Field": {
+                    "_a": ["private", "int", true],
+                    "_b": ["private", "short", true],
+                    "_d": ["private", "byte", true],
+                }
+            },
+            "DateTime": {
+                "Property": {
+                    "Date": ["DateTime", false],
+                }
+            }
+        },
+        "System.Text": {
+            "UTF7Encoding": {
+                "Field": {
+                    "_base64Bytes": ["private", "byte[]", true],
+                    "_base64Values": ["private", "sbyte[]", true],
+                    "_directEncode": ["private", "bool[]", true],
+                    "_allowOptionals": ["private", "bool", true],
+                }
+            },
+            "UTF8Encoding.UTF8Encoder": {
+                "Field": {
+                    "surrogateChar": ["internal", "int", true],
+                }
+            },
+            "UTF8Encoding.UTF8Decoder": {
+                "Field": {
+                    "bits": ["internal", "int", true],
+                }
+            },
+            "UTF8Encoding": {
+                "Field": {
+                    "s_preamble": ["internal static readonly", "byte[]", true],
+                    "_emitUTF8Identifier": ["internal readonly", "bool", true],
+                    "_isThrowException": ["private", "bool", true],
+                }
+            },
+            "UnicodeEncoding.Decoder": {
+                "Field": {
+                    "lastByte": ["internal", "int", true],
+                    "lastChar": ["internal", "char", true],
+                }
+            },
+            "UnicodeEncoding": {
+                "Field": {
+                    "s_bigEndianPreamble": ["private static readonly", "byte[]", true],
+                    "isThrowException": ["internal", "bool", true],
+                    "highLowPatternMask": ["private static readonly", "ulong", true],
+                }
+            },
+        },
+        "System.Runtime.Serialization": {
+            "XmlReaderDelegator": {
+                "Method": {
+                    ".ctor": ["void", true],
+                    "get_AttributeCount": ["int", true],
+                    "get_IsEmptyElement": ["bool", true],
+                    "ReadContentAsAnyType": ["object", true],
+                    "ReadContentAsChar": ["char", true],
+                    "ReadContentAsString": ["string", true],
+                    "ReadContentAsBoolean": ["bool", true],
+                    "ReadContentAsSingle": ["float", true],
+                    "ReadContentAsDouble": ["double", true],
+                    "ReadContentAsDecimal": ["Decimal", false],
+                    "ReadContentAsBase64": ["byte[]", true],
+                    "ReadContentAsDateTime": ["DateTime", false],
+                    "ReadContentAsInt": ["int", true],
+                    "ReadContentAsLong": ["long", true],
+                    "ReadContentAsShort": ["short", true],
+                    "ReadContentAsUnsignedByte": ["byte", true],
+                    "ReadContentAsSignedByte": ["sbyte", true],
+                    "ReadContentAsUnsignedInt": ["uint", true],
+                    "ReadContentAsUnsignedLong": ["ulong", true],
+                    "ReadContentAsUnsignedShort": ["ushort", true],
+                    "ReadContentAsTimeSpan": ["TimeSpan", false],
+                    "ReadContentAsGuid": ["Guid", false],
+                    "ReadContentAsUri": ["Uri", false],
+                    "ReadContentAsQName": ["XmlQualifiedName", false],
+                    "ToChar": ["char", true],
+                    "ToShort": ["short", true],
+                    "ToByte": ["byte", true],
+                    "ToSByte": ["sbyte", true],
+                    "ToUInt32": ["uint", true],
+                    "ToUInt16": ["ushort", true],
+                }
+            }
+        },
+    }
+    function addType(typeIndex, targetType) {
+        knownTypes[typeIndex] = targetType;
+        console.log("Resolved Type: " + typeIndex + " -> " + targetType[0]);
+    }
+    function addField(typeIndex, targetType) {
+        knownFields[typeIndex] = targetType;
+        console.log("Resolved Field: " + typeIndex + " -> " + targetType[1]);
+    }
+    for (var typeDef of this.typeDefinitions) {
+        var knownTypeLocationType = knownTypeLocation[typeDef.namespace];
+        if (knownTypeLocationType === undefined) {
+            continue;
+        }
+        var knownTypeLocationTypeDef = knownTypeLocationType[typeDef.name];
+        if (knownTypeLocationTypeDef === undefined) {
+            continue;
+        }
+        // Notice that Field index is different from Property/Method index so both values need to be specified
+        if (knownTypeLocationTypeDef.Field) {
+            for (var i = typeDef.fieldStart; i < typeDef.fieldStart + typeDef.field_count; ++i) {
+                var fieldDef = this.fieldDefinitions[i];
+                var targetName = fieldDef.name;
+                var targetType = knownTypeLocationTypeDef.Field[targetName];
+                if (targetType === undefined) {
+                    continue;
+                }
+                var typeIndex = fieldDef.typeIndex;
+                addField(typeIndex, targetType);
+            }
+        }
+        if (knownTypeLocationTypeDef.Property) {
+            for (var i = typeDef.propertyStart; i < typeDef.propertyStart + typeDef.property_count; ++i) {
+                var propertyDef = this.propertyDefinitions[i];
+                var targetName = propertyDef.name;
+                var targetType = knownTypeLocationTypeDef.Property[targetName];
+                if (targetType === undefined) {
+                    continue;
+                }
+                var typeIndex = null;
+                if (propertyDef.get >= 0) {
+                    typeIndex = this.methodDefinitions[typeDef.methodStart + propertyDef.get].returnType;
+                } else if (propertyDef.set >= 0) {
+                    typeIndex = this.parameterDefinitions[this.methodDefinitions[typeDef.methodStart + propertyDef.set].parameterStart].typeIndex;
+                }
+                addType(typeIndex, targetType);
+            }
+        }
+        if (knownTypeLocationTypeDef.Method) {
+            for (var i = typeDef.methodStart; i < typeDef.methodStart + typeDef.method_count; ++i) {
+                var methodDef = this.methodDefinitions[i];
+                var targetName = methodDef.name;
+                var typeIndex = methodDef.returnType;
+                var targetType = knownTypeLocationTypeDef.Method[targetName];
+                if (targetType === undefined) {
+                    continue;
+                }
+                addType(typeIndex, targetType);
+            }
         }
     }
+    this.knownTypes = knownTypes;
+    this.knownFields = knownFields;
 
     this.interfaceIndices = read_func_array(reader, this.header.interfacesOffset, this.header.interfacesSize, _=>reader.readInt());
     this.nestedTypeIndices = read_func_array(reader, this.header.nestedTypesOffset, this.header.nestedTypesSize, _=>reader.readInt());

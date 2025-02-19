@@ -151,70 +151,84 @@ function dump_typedef(entry) {
         "DumpProperty": true,
         "DumpTypeDefIndex": true
     }
-    var parts = []
+    // var parts = [];
+    var parts = document.createElement("pre");
     var writer = {
-        "Write": function(...str) {
+        // "Write": function(...str) {
+        "Write": function(str, color) {
             // console.log(...str);
-            parts.push(str.join(""));
+            // parts.push(str);
+            if (color === undefined) {
+                parts.appendChild(document.createTextNode(str));
+            } else {
+                var span = document.createElement("span");
+                span.className = "color_" + color;
+                span.appendChild(document.createTextNode(str));
+                parts.appendChild(span);
+            }
         },
         "Close": function() {}
     }
-    writer.Write(`\n// Namespace: ${typeDef.namespace}\n`);
+    writer.Write(`\n// Namespace: ${typeDef.namespace}\n`, "comment");
     if (config.DumpAttribute)
     {
-        writer.Write(GetCustomAttribute(imageDefinition, typeDef.customAttributeIndex, typeDef.token));
+        WriteCustomAttribute(writer, imageDefinition, typeDef.customAttributeIndex, typeDef.token);
     }
-    if (config.DumpAttribute && (typeDef.flags & TYPE_ATTRIBUTE_SERIALIZABLE) != 0)
-        writer.Write("[Serializable]\n");
+    if (config.DumpAttribute && (typeDef.flags & TYPE_ATTRIBUTE_SERIALIZABLE) != 0) {
+        writer.Write("[");
+        writer.Write("Serializable", "class");
+        writer.Write("]\n");
+    }
     var visibility = typeDef.flags & TYPE_ATTRIBUTE_VISIBILITY_MASK;
     switch (visibility)
     {
         case TYPE_ATTRIBUTE_PUBLIC:
         case TYPE_ATTRIBUTE_NESTED_PUBLIC:
-            writer.Write("public ");
+            writer.Write("public ", "keyword");
             break;
         case TYPE_ATTRIBUTE_NOT_PUBLIC:
         case TYPE_ATTRIBUTE_NESTED_FAM_AND_ASSEM:
         case TYPE_ATTRIBUTE_NESTED_ASSEMBLY:
-            writer.Write("internal ");
+            writer.Write("internal ", "keyword");
             break;
         case TYPE_ATTRIBUTE_NESTED_PRIVATE:
-            writer.Write("private ");
+            writer.Write("private ", "keyword");
             break;
         case TYPE_ATTRIBUTE_NESTED_FAMILY:
-            writer.Write("protected ");
+            writer.Write("protected ", "keyword");
             break;
         case TYPE_ATTRIBUTE_NESTED_FAM_OR_ASSEM:
-            writer.Write("protected internal ");
+            writer.Write("protected internal ", "keyword");
             break;
     }
     if ((typeDef.flags & TYPE_ATTRIBUTE_ABSTRACT) != 0 && (typeDef.flags & TYPE_ATTRIBUTE_SEALED) != 0)
-        writer.Write("static ");
+        writer.Write("static ", "keyword");
     else if ((typeDef.flags & TYPE_ATTRIBUTE_INTERFACE) == 0 && (typeDef.flags & TYPE_ATTRIBUTE_ABSTRACT) != 0)
-        writer.Write("abstract ");
+        writer.Write("abstract ", "keyword");
     else if (!typeDef.IsValueType && !typeDef.IsEnum && (typeDef.flags & TYPE_ATTRIBUTE_SEALED) != 0)
-        writer.Write("sealed ");
+        writer.Write("sealed ", "keyword");
     if ((typeDef.flags & TYPE_ATTRIBUTE_INTERFACE) != 0)
-        writer.Write("interface ");
+        writer.Write("interface ", "keyword");
     else if (typeDef.IsEnum)
-        writer.Write("enum ");
+        writer.Write("enum ", "keyword");
     else if (typeDef.IsValueType)
-        writer.Write("struct ");
+        writer.Write("struct ", "keyword");
     else
-        writer.Write("class ");
+        writer.Write("class ", "keyword");
     var typeName = `executor.GetTypeDefName(${typeDef}, false, true)`;
     typeName = typeDef.name; // test
     writer.Write(`${typeName}`);
     if (extends_.Count > 0)
         writer.Write(` : ${extends_.join(", ")}`);
-    if (config.DumpTypeDefIndex)
-        writer.Write(` // TypeDefIndex: ${typeDefIndex}\n{`);
-    else
+    if (config.DumpTypeDefIndex) {
+        writer.Write(` // TypeDefIndex: ${typeDefIndex}`, "comment");
+        writer.Write(`\n{`);
+    } else
         writer.Write("\n{");
     //dump field
     if (config.DumpField && typeDef.field_count > 0)
     {
-        writer.Write("\n\t// Fields\n");
+        writer.Write("\n\t// Fields\n", "comment");
         var fieldEnd = typeDef.fieldStart + typeDef.field_count;
         for (var i = typeDef.fieldStart; i < fieldEnd; ++i)
         {
@@ -224,7 +238,7 @@ function dump_typedef(entry) {
             var isConst = false;
             if (config.DumpAttribute)
             {
-                writer.Write(GetCustomAttribute(imageDefinition, fieldDef.customAttributeIndex, fieldDef.token, "\t"));
+                WriteCustomAttribute(writer, imageDefinition, fieldDef.customAttributeIndex, fieldDef.token, "\t");
             }
             writer.Write("\t");
             // var access = fieldType.attrs & FIELD_ATTRIBUTE_FIELD_ACCESS_MASK;
@@ -264,7 +278,9 @@ function dump_typedef(entry) {
             //         writer.Write("readonly ");
             //     }
             // }
-            writer.Write(`${GetTypeName(metadata, fieldDef.typeIndex)} ${fieldDef.name}`);
+            WriteFieldName(writer, metadata, fieldDef.typeIndex);
+            writer.Write(" ");
+            writer.Write(fieldDef.name);
             // if (metadata.GetFieldDefaultValueFromIndex(i, fieldDefaultValue) && fieldDefaultValue.dataIndex != -1)
             if ((fieldDefaultValue = metadata.fieldDefaultValues[i]) && fieldDefaultValue.dataIndex != -1)
             {
@@ -291,11 +307,11 @@ function dump_typedef(entry) {
                 // }
                 // else
                 // {
-                    writer.Write(` /*Metadata offset 0x{value:X}*/`);
+                    writer.Write(` /*Metadata offset 0x{value:X}*/`, "comment");
                 // }
             }
             if (config.DumpFieldOffset && !isConst)
-                writer.Write(`; // 0x{il2Cpp.GetFieldOffsetFromIndex(${typeDefIndex}, ${i - typeDef.fieldStart}, ${i}, ${typeDef.IsValueType}, ${isStatic})}\n`);
+                writer.Write(`; // 0x{il2Cpp.GetFieldOffsetFromIndex(${typeDefIndex}, ${i - typeDef.fieldStart}, ${i}, ${typeDef.IsValueType}, ${isStatic})}\n`, "comment");
             else
                 writer.Write(";\n");
         }
@@ -303,37 +319,47 @@ function dump_typedef(entry) {
     //dump property
     if (config.DumpProperty && typeDef.property_count > 0)
     {
-        writer.Write("\n\t// Properties\n");
+        writer.Write("\n\t// Properties\n", "comment");
         var propertyEnd = typeDef.propertyStart + typeDef.property_count;
         for (var i = typeDef.propertyStart; i < propertyEnd; ++i)
         {
             var propertyDef = metadata.propertyDefinitions[i];
             if (config.DumpAttribute)
             {
-                writer.Write(GetCustomAttribute(imageDefinition, propertyDef.customAttributeIndex, propertyDef.token, "\t"));
+                WriteCustomAttribute(writer, imageDefinition, propertyDef.customAttributeIndex, propertyDef.token, "\t");
             }
             writer.Write("\t");
             if (propertyDef.get >= 0)
             {
                 var methodDef = metadata.methodDefinitions[typeDef.methodStart + propertyDef.get];
-                writer.Write(GetModifiers(methodDef));
+                WriteModifiers(writer, methodDef);
                 // var propertyTypeDef = undefined; // metadata.typeDefinitions[methodDef.returnType];
                 // var propertyType = propertyTypeDef ? propertyTypeDef.name : `il2Cpp.types[${methodDef.returnType}]`;
-                writer.Write(`${GetTypeName(metadata, methodDef.returnType)} ${propertyDef.name} { `);
+                WriteTypeName(writer, metadata, methodDef.returnType);
+                writer.Write(" ");
+                writer.Write(propertyDef.name);
+                writer.Write(" { ");
             }
             else if (propertyDef.set >= 0)
             {
                 var methodDef = metadata.methodDefinitions[typeDef.methodStart + propertyDef.set];
-                writer.Write(GetModifiers(methodDef));
+                WriteModifiers(writer, methodDef);
                 var parameterDef = metadata.parameterDefinitions[methodDef.parameterStart];
                 // var propertyTypeDef = undefined; // metadata.typeDefinitions[parameterDef.typeIndex];
                 // var propertyType = propertyTypeDef ? propertyTypeDef.name : `il2Cpp.types[${parameterDef.typeIndex}]`;
-                writer.Write(`${GetTypeName(metadata, parameterDef.typeIndex)} ${propertyDef.name} { `);
+                WriteTypeName(writer, metadata, parameterDef.typeIndex);
+                writer.Write(" ");
+                writer.Write(propertyDef.name);
+                writer.Write(" { ");
             }
-            if (propertyDef.get >= 0)
-                writer.Write("get; ");
-            if (propertyDef.set >= 0)
-                writer.Write("set; ");
+            if (propertyDef.get >= 0) {
+                writer.Write("get", "keyword");
+                writer.Write("; ");
+            }
+            if (propertyDef.set >= 0) {
+                writer.Write("set", "keyword");
+                writer.Write("; ");
+            }
             writer.Write("}");
             writer.Write("\n");
         }
@@ -341,7 +367,7 @@ function dump_typedef(entry) {
     //dump method
     if (config.DumpMethod && typeDef.method_count > 0)
     {
-        writer.Write("\n\t// Methods\n");
+        writer.Write("\n\t// Methods\n", "comment");
         var methodEnd = typeDef.methodStart + typeDef.method_count;
         for (var i = typeDef.methodStart; i < methodEnd; ++i)
         {
@@ -350,7 +376,7 @@ function dump_typedef(entry) {
             var isAbstract = (methodDef.flags & METHOD_ATTRIBUTE_ABSTRACT) != 0;
             if (config.DumpAttribute)
             {
-                writer.Write(GetCustomAttribute(imageDefinition, methodDef.customAttributeIndex, methodDef.token, "\t"));
+                WriteCustomAttribute(writer, imageDefinition, methodDef.customAttributeIndex, methodDef.token, "\t");
             }
             // if (config.DumpMethodOffset)
             // {
@@ -371,7 +397,7 @@ function dump_typedef(entry) {
             //     writer.Write("\n");
             // }
             writer.Write("\t");
-            writer.Write(GetModifiers(methodDef));
+            WriteModifiers(writer, methodDef);
             // var methodReturnType = `il2Cpp.types[${methodDef.returnType}]`;
             var methodName = methodDef.name;
             if (methodDef.genericContainerIndex >= 0)
@@ -383,15 +409,22 @@ function dump_typedef(entry) {
             // {
             //     writer.Write("ref ");
             // }
-            writer.Write(`${GetTypeName(metadata, methodDef.returnType)} ${methodName}(`);
-            var parameterStrs = [];
+            WriteTypeName(writer, metadata, methodDef.returnType);
+            writer.Write(" ");
+            writer.Write(methodName, "function");
+            writer.Write("(");
+            // var parameterStrs = [];
             for (var j = 0; j < methodDef.parameterCount; ++j)
             {
-                var parameterStr = "";
+                if (j > 0) {
+                    writer.Write(", ");
+                }
+                // var parameterStr = "";
                 var parameterDef = metadata.parameterDefinitions[methodDef.parameterStart + j];
-                var parameterName = parameterDef.name;
+                // var parameterName = parameterDef.name;
                 // var parameterType = `il2Cpp.types[${parameterDef.typeIndex}]`;
-                var parameterTypeName = `${GetTypeName(metadata, parameterDef.typeIndex)}`;
+                // var parameterTypeName = `${GetTypeName(metadata, parameterDef.typeIndex)}`;
+                WriteTypeName(writer, metadata, parameterDef.typeIndex);
                 // if (parameterType.byref == 1)
                 // {
                 //     if ((parameterType.attrs & PARAM_ATTRIBUTE_OUT) != 0 && (parameterType.attrs & PARAM_ATTRIBUTE_IN) == 0)
@@ -418,7 +451,9 @@ function dump_typedef(entry) {
                 //         parameterStr += "[Out] ";
                 //     }
                 // }
-                parameterStr += `${parameterTypeName} ${parameterName}`;
+                // parameterStr += `${parameterTypeName} ${parameterName}`;
+                writer.Write(" ");
+                writer.Write(parameterDef.name);
                 if ((parameterDefault = metadata.parameterDefaultValues[methodDef.parameterStart + j]) && parameterDefault && parameterDefault.dataIndex != -1)
                 {
                     var value = `executor.TryGetDefaultValue(${parameterDefault.typeIndex}, ${parameterDefault.dataIndex}, ${value})`;
@@ -445,12 +480,13 @@ function dump_typedef(entry) {
                     // }
                     // else
                     // {
-                        parameterStr += ` /*Metadata offset 0x${value.toString(16)}*/`;
+                        // parameterStr += ` /*Metadata offset 0x${value.toString(16)}*/`;
+                        writer.Write(` /*Metadata offset 0x${value.toString(16)}*/`, "comment")
                     // }
                 }
-                parameterStrs.push(parameterStr);
+                // parameterStrs.push(parameterStr);
             }
-            writer.Write(parameterStrs.join(", "));
+            // writer.Write(parameterStrs.join(", "));
             if (isAbstract)
             {
                 writer.Write(");\n");
@@ -488,58 +524,61 @@ function dump_typedef(entry) {
         }
     }
     writer.Write("}\n");
-    entry.content = parts.join("").split("\n");
+    // entry.content = parts.join("");
+    // entry.parse_mode = "text";
+    entry.content = parts.innerHTML;
+    entry.parse_mode = "html";
 }
 
-function GetModifiers(methodDef)
+function WriteModifiers(writer, methodDef)
 {
     // if (methodModifiers.TryGetValue(methodDef, out string str))
     //     return str;
-    var str = "";
+    // var str = "";
     var access = methodDef.flags & METHOD_ATTRIBUTE_MEMBER_ACCESS_MASK;
     switch (access)
     {
         case METHOD_ATTRIBUTE_PRIVATE:
-            str += "private ";
+            writer.Write("private ", "keyword");
             break;
         case METHOD_ATTRIBUTE_PUBLIC:
-            str += "public ";
+            writer.Write("public ", "keyword");
             break;
         case METHOD_ATTRIBUTE_FAMILY:
-            str += "protected ";
+            writer.Write("protected ", "keyword");
             break;
         case METHOD_ATTRIBUTE_ASSEM:
         case METHOD_ATTRIBUTE_FAM_AND_ASSEM:
-            str += "internal ";
+            writer.Write("internal ", "keyword");
             break;
         case METHOD_ATTRIBUTE_FAM_OR_ASSEM:
-            str += "protected internal ";
+            writer.Write("protected internal ", "keyword");
             break;
     }
     if ((methodDef.flags & METHOD_ATTRIBUTE_STATIC) != 0)
-        str += "static ";
+        writer.Write("static ", "keyword");
     if ((methodDef.flags & METHOD_ATTRIBUTE_ABSTRACT) != 0)
     {
-        str += "abstract ";
+        writer.Write("abstract ", "keyword");
         if ((methodDef.flags & METHOD_ATTRIBUTE_VTABLE_LAYOUT_MASK) == METHOD_ATTRIBUTE_REUSE_SLOT)
-            str += "override ";
+            writer.Write("override ", "keyword");
     }
     else if ((methodDef.flags & METHOD_ATTRIBUTE_FINAL) != 0)
     {
         if ((methodDef.flags & METHOD_ATTRIBUTE_VTABLE_LAYOUT_MASK) == METHOD_ATTRIBUTE_REUSE_SLOT)
-            str += "sealed override ";
+            writer.Write("sealed override ", "keyword");
     }
     else if ((methodDef.flags & METHOD_ATTRIBUTE_VIRTUAL) != 0)
     {
         if ((methodDef.flags & METHOD_ATTRIBUTE_VTABLE_LAYOUT_MASK) == METHOD_ATTRIBUTE_NEW_SLOT)
-            str += "virtual ";
+            writer.Write("virtual ", "keyword");
         else
-            str += "override ";
+            writer.Write("override ", "keyword");
     }
     if ((methodDef.flags & METHOD_ATTRIBUTE_PINVOKE_IMPL) != 0)
-        str += "extern ";
+        writer.Write("extern ", "keyword");
     // methodModifiers.Add(methodDef, str);
-    return str;
+    // return str;
 }
 
 function ResolveSlice(metadata, content) {
@@ -694,51 +733,99 @@ function AttributeDataToString(blobValue)
 {
     //TODO enum
     if (blobValue === null) {
-        return "null";
+        return [["null", "const"]];
     }
     if (typeof blobValue === "string") {
-        return JSON.stringify(blobValue);
+        return [[JSON.stringify(blobValue), "string"]];
     } else if (Array.isArray(blobValue)) {
-        return `new[] { ${blobValue.map(AttributeDataToString).join(", ")} }`;
+        var temp = [
+            ["new", "keyword"],
+            ["[] { "],
+        ];
+        blobValue.forEach(function (entry) {
+           temp.push(...AttributeDataToString(entry));
+           temp.push([", "]); 
+        });
+        temp.pop();
+        temp.push([" }"]);
+        // return `new[] { ${blobValue.map(AttributeDataToString).join(", ")} }`;
+        return temp;
     }
-    return blobValue;
+    return [[blobValue, "const"]];
 }
 
 
 function ResolveSliceAsString(metadata, content) {
     var result = ResolveSlice(metadata, content);
-    var entries = [];
+    var all_entries = [];
     result.forEach(entry => {
+        var entries = [];
         var typeName = entry.typeDef.name;
         if (typeName.endsWith("Attribute")) {
             typeName = typeName.substr(0, typeName.length - "Attribute".length);
         }
         if (entry.arguments.length === 0) {
-            entries.push(`[${typeName}]`);
+            entries.push(["["]);
+            entries.push([typeName, "class"]);
+            entries.push(["]"]);
         } else {
-            entries.push(`[${typeName}(${entry.arguments.map(function (arg) {
+            entries.push(["["]);
+            entries.push([typeName, "class"]);
+            entries.push(["("]);
+            entry.arguments.forEach(function (arg) {
                 if (arg.length === 1) {
-                    return AttributeDataToString(arg[0]);
+                    entries.push(...AttributeDataToString(arg[0]));
                 } else {
                     // 2
-                    return `${arg[0]} = ${arg[1]}`;
+                    entries.push([`${arg[0]} = ${arg[1]}`]);
                 }
-            }).join(", ")})]`);
+                entries.push([", "]);
+            });
+            entries.pop();
+            // entries.push([entry.arguments.map(function (arg) {
+            //     if (arg.length === 1) {
+            //         return AttributeDataToString(arg[0]);
+            //     } else {
+            //         // 2
+            //         return `${arg[0]} = ${arg[1]}`;
+            //     }
+            // }).join(", ")]);
+            entries.push([")]"]);
         }
+        all_entries.push(entries);
     })
-    return entries;
+    return all_entries;
 }
 
-function GetTypeName(metadata, typeIndex) {
+function WriteTypeName(writer, metadata, typeIndex) {
     var temp = metadata.knownTypes[typeIndex];
     if (temp === undefined) {
-        return `il2Cpp.types[${typeIndex}]`;
+        writer.Write(`il2Cpp.types[${typeIndex}]`, "class");
     } else {
-        return temp;
+        if (temp[1]) { // keyword type
+            writer.Write(temp[0], "keyword");
+        } else {
+            writer.Write(temp[0], "class");
+        }
     }
 }
 
-function GetCustomAttribute(/*Il2CppImageDefinition*/ imageDef, /*int*/ customAttributeIndex, /*uint*/ token, /*string*/ padding = "")
+function WriteFieldName(writer, metadata, typeIndex) {
+    var temp = metadata.knownFields[typeIndex];
+    if (temp === undefined) {
+        writer.Write(`il2Cpp.types[${typeIndex}]`, "class");
+    } else {
+        writer.Write(temp[0], "keyword");
+        writer.Write(" ");
+        if (temp[2]) { // keyword type
+            writer.Write(temp[1], "keyword");
+        } else {
+            writer.Write(temp[1], "class");
+        }
+    }
+}
+
+function WriteCustomAttribute(writer, /*Il2CppImageDefinition*/ imageDef, /*int*/ customAttributeIndex, /*uint*/ token, /*string*/ padding = "")
 {
     if (metadata.header.version < 21)
         return "";
@@ -760,13 +847,17 @@ function GetCustomAttribute(/*Il2CppImageDefinition*/ imageDef, /*int*/ customAt
             var methodPointer = executor.customAttributeGenerators[attributeIndex];
             // var fixedMethodPointer = `il2Cpp.GetRVA(${methodPointer})`;
             var attributeTypeRange = metadata.attributeTypeRanges[attributeIndex];
-            var sb = [];
+            // var sb = [];
             for (var i = 0; i < attributeTypeRange.count; i++)
             {
                 var typeIndex = metadata.attributeTypes[attributeTypeRange.start + i];
-                sb.push(`${padding}[${GetTypeName(metadata, typeIndex)}]`);
+                writer.Write(padding);
+                writer.Write('[');
+                WriteTypeName(writer, metadata, typeIndex);
+                writer.Write(']');
+                // sb.push(`${padding}[${GetTypeName(metadata, typeIndex)}]`);
             }
-            return sb.join("");
+            // return sb.join("");
         }
         else
         {
@@ -780,15 +871,22 @@ function GetCustomAttribute(/*Il2CppImageDefinition*/ imageDef, /*int*/ customAt
             // {
             //     return "";
             // }
-            var sb = [];
+            // var sb = [];
             for (var i = 0; i < dataSlice.length; i++)
             {
-                sb.push(padding);
+                writer.Write(padding);
                 // sb.push(reader.GetStringCustomAttributeData());
-                sb.push(dataSlice[i]);
-                sb.push('\n');
+                dataSlice[i].forEach(function (entry) {
+                    if (entry.length === 2) {
+                        writer.Write(entry[0], entry[1]);
+                    } else {
+                        writer.Write(entry[0]);
+                    }
+                })
+                // writer.Write(dataSlice[i]);
+                writer.Write('\n');
             }
-            return sb.join("");
+            // return sb.join("");
         }
     }
     else
