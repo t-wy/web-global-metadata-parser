@@ -307,7 +307,7 @@ function dump_typedef(entry) {
                 // }
                 // else
                 // {
-                    writer.Write(` /*Metadata offset 0x{value:X}*/`, "comment");
+                    // writer.Write(` /*Metadata offset 0x${value.toString(16)}*/`, "comment");
                 // }
             }
             if (config.DumpFieldOffset && !isConst)
@@ -583,7 +583,7 @@ function WriteModifiers(writer, methodDef)
 
 function ResolveSlice(metadata, content) {
     var ReadCustomAttributeNamedArgumentClassAndIndex = function (typeDef) {
-        var memberIndex = read_compressed_uint32(reader);
+        var memberIndex = read_compressed_int32(reader);
         if (memberIndex >= 0) return [typeDef, memberIndex];
         memberIndex = -(memberIndex + 1);
         var typeIndex = read_compressed_uint32(reader);
@@ -844,7 +844,7 @@ function WriteCustomAttribute(writer, /*Il2CppImageDefinition*/ imageDef, /*int*
     {
         if (metadata.header.version < 29)
         {
-            var methodPointer = executor.customAttributeGenerators[attributeIndex];
+            // var methodPointer = executor.customAttributeGenerators[attributeIndex];
             // var fixedMethodPointer = `il2Cpp.GetRVA(${methodPointer})`;
             var attributeTypeRange = metadata.attributeTypeRanges[attributeIndex];
             // var sb = [];
@@ -856,37 +856,42 @@ function WriteCustomAttribute(writer, /*Il2CppImageDefinition*/ imageDef, /*int*
                 WriteTypeName(writer, metadata, typeIndex);
                 writer.Write(']');
                 // sb.push(`${padding}[${GetTypeName(metadata, typeIndex)}]`);
+                writer.Write('\n');
             }
             // return sb.join("");
         }
         else
         {
-            var dataSlice = ResolveSliceAsString(metadata, metadata.attributeDataSlice[attributeIndex]);
-            // var startRange = metadata.attributeDataRanges[attributeIndex];
-            // var endRange = metadata.attributeDataRanges[attributeIndex + 1];
-            // metadata.Position = metadata.header.attributeDataOffset + startRange.startOffset;
-            // var buff = metadata.ReadBytes((int)(endRange.startOffset - startRange.startOffset));
-            // var reader = new CustomAttributeDataReader(executor, buff);
-            // if (reader.Count == 0)
-            // {
-            //     return "";
-            // }
-            // var sb = [];
-            for (var i = 0; i < dataSlice.length; i++)
-            {
-                writer.Write(padding);
-                // sb.push(reader.GetStringCustomAttributeData());
-                dataSlice[i].forEach(function (entry) {
-                    if (entry.length === 2) {
-                        writer.Write(entry[0], entry[1]);
-                    } else {
-                        writer.Write(entry[0]);
-                    }
-                })
-                // writer.Write(dataSlice[i]);
-                writer.Write('\n');
+            try {
+                var dataSlice = ResolveSliceAsString(metadata, metadata.attributeDataSlice[attributeIndex]);
+                // var startRange = metadata.attributeDataRanges[attributeIndex];
+                // var endRange = metadata.attributeDataRanges[attributeIndex + 1];
+                // metadata.Position = metadata.header.attributeDataOffset + startRange.startOffset;
+                // var buff = metadata.ReadBytes((int)(endRange.startOffset - startRange.startOffset));
+                // var reader = new CustomAttributeDataReader(executor, buff);
+                // if (reader.Count == 0)
+                // {
+                //     return "";
+                // }
+                // var sb = [];
+                for (var i = 0; i < dataSlice.length; i++)
+                {
+                    writer.Write(padding);
+                    // sb.push(reader.GetStringCustomAttributeData());
+                    dataSlice[i].forEach(function (entry) {
+                        if (entry.length === 2) {
+                            writer.Write(entry[0], entry[1]);
+                        } else {
+                            writer.Write(entry[0]);
+                        }
+                    })
+                    // writer.Write(dataSlice[i]);
+                    writer.Write('\n');
+                }
+                // return sb.join("");
+            } catch (e) {
+                console.error(e);
             }
-            // return sb.join("");
         }
     }
     else

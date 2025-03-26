@@ -141,126 +141,6 @@ function GlobalMetadata(reader) {
     // window.metadata = this;
     // try resolve common types
     var knownTypeLocation = {
-        "UnityEngine.UI": {
-            "Text": {
-                "Field": {
-                    "m_Text": ["protected", "string", true],
-                    "m_DisableFontTextureRebuiltCallback": ["protected", "bool", true],
-                },
-                "Property": {
-                    "font": ["Font", false],
-                    "text": ["string", true],
-                    "fontSize": ["int", true],
-                    "supportRichText": ["bool", true],
-                    "lineSpacing": ["float", true],
-                },
-                "Method": {
-                    ".ctor": ["void", true],
-                }
-            },
-            "ColorBlock": {
-                "Field": {
-                    "m_NormalColor": ["private", "Color", false],
-                    "m_FadeDuration": ["private", "float", true],
-                },
-                "Property": {
-                    "normalColor": ["Color", false],
-                },
-            }
-        },
-        "UnityEngine": {
-            "AssetBundle": {
-                "Method": {
-                    "LoadAsset": ["Object", true],
-                    "GetAllScenePaths": ["string[]", true],
-                }
-            }
-        },
-        "UnityEngine.XR": {
-            "XRNodeState": {
-                "Property": {
-                    "uniqueID": ["ulong", true],
-                }
-            }
-        },
-        "Unity.Burst.Intrinsics": {
-            "Common": {
-                "Method": {
-                    "umul128": ["ulong", true],
-                }
-            },
-            "v128": {
-                "Field": {
-                    "Byte0": ["public", "byte", true],
-                    "SByte0": ["public", "sbyte", true],
-                    "UShort0": ["public", "ushort", true],
-                    "SShort0": ["public", "short", true],
-                    "UInt0": ["public", "uint", true],
-                    "SInt0": ["public", "int", true],
-                    "ULong0": ["public", "ulong", true],
-                    "SLong0": ["public", "long", true],
-                    "Float0": ["public", "float", true],
-                    "Double0": ["public", "double", true],
-                    "Lo64": ["public", "v64", true],
-                },
-            },
-            "v256": {
-                "Field": {
-                    "Lo128": ["public", "v128", true],
-                },
-            },
-            "V64DebugView": {
-                "Field": {
-                    "m_Value": ["private", "v64", true],
-                },
-                "Method": {
-                    "get_Byte": ["byte[]", true],
-                    "get_SByte": ["sbyte[]", true],
-                    "get_UShort": ["ushort[]", true],
-                    "get_SShort": ["short[]", true],
-                    "get_UInt": ["uint[]", true],
-                    "get_SInt": ["int[]", true],
-                    "get_Float": ["float[]", true],
-                    "get_SLong": ["long[]", true],
-                    "get_ULong": ["ulong[]", true],
-                    "get_Double": ["double[]", true],
-                }
-            },
-            "V128DebugView": {
-                "Field": {
-                    "m_Value": ["private", "v128", true],
-                },
-                "Method": {
-                    "get_Byte": ["byte[]", true],
-                    "get_SByte": ["sbyte[]", true],
-                    "get_UShort": ["ushort[]", true],
-                    "get_SShort": ["short[]", true],
-                    "get_UInt": ["uint[]", true],
-                    "get_SInt": ["int[]", true],
-                    "get_Float": ["float[]", true],
-                    "get_SLong": ["long[]", true],
-                    "get_ULong": ["ulong[]", true],
-                    "get_Double": ["double[]", true],
-                }
-            },
-            "V256DebugView": {
-                "Field": {
-                    "m_Value": ["private", "v256", true],
-                },
-                "Method": {
-                    "get_Byte": ["byte[]", true],
-                    "get_SByte": ["sbyte[]", true],
-                    "get_UShort": ["ushort[]", true],
-                    "get_SShort": ["short[]", true],
-                    "get_UInt": ["uint[]", true],
-                    "get_SInt": ["int[]", true],
-                    "get_Float": ["float[]", true],
-                    "get_SLong": ["long[]", true],
-                    "get_ULong": ["ulong[]", true],
-                    "get_Double": ["double[]", true],
-                }
-            }
-        },
         "System": {
             "GuidEx": {
                 "Field": {
@@ -348,6 +228,138 @@ function GlobalMetadata(reader) {
                     "ToSByte": ["sbyte", true],
                     "ToUInt32": ["uint", true],
                     "ToUInt16": ["ushort", true],
+                }
+            }
+        },
+        "Unity.Burst.Intrinsics": {
+            "Common": {
+                "Method": {
+                    "umul128": ["ulong", true],
+                }
+            },
+            "v128": {
+                "Field": {
+                    "Byte0": ["public", "byte", true],
+                    "SByte0": ["public", "sbyte", true],
+                    "UShort0": ["public", "ushort", true],
+                    "SShort0": ["public", "short", true],
+                    "UInt0": ["public", "uint", true],
+                    "SInt0": ["public", "int", true],
+                    "ULong0": ["public", "ulong", true],
+                    "SLong0": ["public", "long", true],
+                    "Float0": ["public", "float", true],
+                    "Double0": ["public", "double", true],
+                    "Lo64": ["public", "v64", true],
+                },
+            },
+            "v256": {
+                "Field": {
+                    "Lo128": ["public", "v128", true],
+                },
+            },
+            "V64DebugView": {
+                "Field": {
+                    "m_Value": ["private", "v64", true],
+                },
+                "Method": {
+                    "get_Byte": ["byte[]", true],
+                    "get_SByte": ["sbyte[]", true],
+                    "get_UShort": ["ushort[]", true],
+                    "get_SShort": ["short[]", true],
+                    "get_UInt": ["uint[]", true],
+                    "get_SInt": ["int[]", true],
+                    "get_Float": ["float[]", true],
+                    "get_SLong": ["long[]", true],
+                    "get_ULong": ["ulong[]", true],
+                    "get_Double": ["double[]", true],
+                }
+            },
+            "V128DebugView": {
+                "Field": {
+                    "m_Value": ["private", "v128", true],
+                },
+                "Method": {
+                    "get_Byte": ["byte[]", true],
+                    "get_SByte": ["sbyte[]", true],
+                    "get_UShort": ["ushort[]", true],
+                    "get_SShort": ["short[]", true],
+                    "get_UInt": ["uint[]", true],
+                    "get_SInt": ["int[]", true],
+                    "get_Float": ["float[]", true],
+                    "get_SLong": ["long[]", true],
+                    "get_ULong": ["ulong[]", true],
+                    "get_Double": ["double[]", true],
+                }
+            },
+            "V256DebugView": {
+                "Field": {
+                    "m_Value": ["private", "v256", true],
+                },
+                "Method": {
+                    "get_Byte": ["byte[]", true],
+                    "get_SByte": ["sbyte[]", true],
+                    "get_UShort": ["ushort[]", true],
+                    "get_SShort": ["short[]", true],
+                    "get_UInt": ["uint[]", true],
+                    "get_SInt": ["int[]", true],
+                    "get_Float": ["float[]", true],
+                    "get_SLong": ["long[]", true],
+                    "get_ULong": ["ulong[]", true],
+                    "get_Double": ["double[]", true],
+                }
+            }
+        },
+        "UnityEngine": {
+            "AssetBundle": {
+                "Method": {
+                    "LoadAsset": ["Object", true],
+                    "GetAllScenePaths": ["string[]", true],
+                }
+            }
+        },
+        "UnityEngine.Purchasing": {
+            "ExponentialRetryPolicy": {
+                "Field": {
+                    "m_BaseRetryDelay": ["private readonly", "int", true],
+                },
+            },
+            "FileReference": {
+                "Field": {
+                    "m_FilePath": ["private readonly", "string", true],
+                },
+            },
+        },
+        "UnityEngine.UI": {
+            "Text": {
+                "Field": {
+                    "m_Text": ["protected", "string", true],
+                    "m_DisableFontTextureRebuiltCallback": ["protected", "bool", true],
+                },
+                "Property": {
+                    "font": ["Font", false],
+                    "text": ["string", true],
+                    "fontSize": ["int", true],
+                    "supportRichText": ["bool", true],
+                    "lineSpacing": ["float", true],
+                },
+                "Method": {
+                    ".ctor": ["void", true],
+                }
+            },
+            "ColorBlock": {
+                "Field": {
+                    "m_NormalColor": ["private", "Color", false],
+                    "m_FadeDuration": ["private", "float", true],
+                },
+                "Property": {
+                    "normalColor": ["Color", false],
+                },
+            }
+        },
+        "UnityEngine.XR": {
+            "XRNodeState": {
+                "Property": {
+                    "uniqueID": ["ulong", true],
                 }
             }
         },
