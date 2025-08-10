@@ -815,10 +815,10 @@ function WriteTypeName(writer, metadata, typeIndex) {
     if (temp === undefined) {
         writer.Write(`il2Cpp.types[${typeIndex}]`, "class");
     } else {
-        if (temp[1]) { // keyword type
-            writer.Write(temp[0], "keyword");
+        if (temp[2]) { // keyword type
+            writer.Write(temp[1], "keyword");
         } else {
-            writer.Write(temp[0], "class");
+            writer.Write(temp[1], "class");
         }
     }
 }

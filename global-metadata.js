@@ -149,11 +149,40 @@ function GlobalMetadata(reader) {
                     "_d": ["private", "byte", true],
                 }
             },
+            "Char": {
+                "Field": {
+                    "m_value": ["private readonly", "char", true],
+                    "MinValue": ["public const", "char", true],
+                    "s_categoryForLatin1": ["private static readonly", "byte[]", true],
+                    "UNICODE_PLANE00_END": ["internal const", "int", true],
+                }
+            },
+            "CharEnumerator": {
+                "Field": {
+                    "_str": ["private", "string", true],
+                    "_index": ["private", "int", true],
+                    "_currentElement": ["private", "char", true],
+                }
+            },
             "DateTime": {
                 "Property": {
-                    "Date": ["DateTime", false],
+                    "Date": ["", "DateTime", false],
                 }
-            }
+            },
+            "Double": {
+                "Field": {
+                    "m_value": ["private readonly", "double", true],
+                    "MinValue": ["public const", "double", true],
+                    "NegativeZero": ["internal const", "double", true],
+                }
+            },
+            "Single": {
+                "Field": {
+                    "m_value": ["private readonly", "float", true],
+                    "MinValue": ["public const", "float", true],
+                    "NegativeZero": ["internal const", "float", true],
+                }
+            },
         },
         "System.Text": {
             "UTF7Encoding": {
@@ -198,55 +227,55 @@ function GlobalMetadata(reader) {
         "System.Runtime.Serialization": {
             "XmlReaderDelegator": {
                 "Method": {
-                    ".ctor": ["void", true],
-                    "get_AttributeCount": ["int", true],
-                    "get_IsEmptyElement": ["bool", true],
-                    "ReadContentAsAnyType": ["object", true],
-                    "ReadContentAsChar": ["char", true],
-                    "ReadContentAsString": ["string", true],
-                    "ReadContentAsBoolean": ["bool", true],
-                    "ReadContentAsSingle": ["float", true],
-                    "ReadContentAsDouble": ["double", true],
-                    "ReadContentAsDecimal": ["Decimal", false],
-                    "ReadContentAsBase64": ["byte[]", true],
-                    "ReadContentAsDateTime": ["DateTime", false],
-                    "ReadContentAsInt": ["int", true],
-                    "ReadContentAsLong": ["long", true],
-                    "ReadContentAsShort": ["short", true],
-                    "ReadContentAsUnsignedByte": ["byte", true],
-                    "ReadContentAsSignedByte": ["sbyte", true],
-                    "ReadContentAsUnsignedInt": ["uint", true],
-                    "ReadContentAsUnsignedLong": ["ulong", true],
-                    "ReadContentAsUnsignedShort": ["ushort", true],
-                    "ReadContentAsTimeSpan": ["TimeSpan", false],
-                    "ReadContentAsGuid": ["Guid", false],
-                    "ReadContentAsUri": ["Uri", false],
-                    "ReadContentAsQName": ["XmlQualifiedName", false],
-                    "ToChar": ["char", true],
-                    "ToShort": ["short", true],
-                    "ToByte": ["byte", true],
-                    "ToSByte": ["sbyte", true],
-                    "ToUInt32": ["uint", true],
-                    "ToUInt16": ["ushort", true],
+                    ".ctor": ["", "void", true],
+                    "get_AttributeCount": ["", "int", true],
+                    "get_IsEmptyElement": ["", "bool", true],
+                    "ReadContentAsAnyType": ["", "object", true],
+                    "ReadContentAsChar": ["", "char", true],
+                    "ReadContentAsString": ["", "string", true],
+                    "ReadContentAsBoolean": ["", "bool", true],
+                    "ReadContentAsSingle": ["", "float", true],
+                    "ReadContentAsDouble": ["", "double", true],
+                    "ReadContentAsDecimal": ["", "Decimal", false],
+                    "ReadContentAsBase64": ["", "byte[]", true],
+                    "ReadContentAsDateTime": ["", "DateTime", false],
+                    "ReadContentAsInt": ["", "int", true],
+                    "ReadContentAsLong": ["", "long", true],
+                    "ReadContentAsShort": ["", "short", true],
+                    "ReadContentAsUnsignedByte": ["", "byte", true],
+                    "ReadContentAsSignedByte": ["", "sbyte", true],
+                    "ReadContentAsUnsignedInt": ["", "uint", true],
+                    "ReadContentAsUnsignedLong": ["", "ulong", true],
+                    "ReadContentAsUnsignedShort": ["", "ushort", true],
+                    "ReadContentAsTimeSpan": ["", "TimeSpan", false],
+                    "ReadContentAsGuid": ["", "Guid", false],
+                    "ReadContentAsUri": ["", "Uri", false],
+                    "ReadContentAsQName": ["", "XmlQualifiedName", false],
+                    "ToChar": ["", "char", true],
+                    "ToShort": ["", "short", true],
+                    "ToByte": ["", "byte", true],
+                    "ToSByte": ["", "sbyte", true],
+                    "ToUInt32": ["", "uint", true],
+                    "ToUInt16": ["", "ushort", true],
                 }
             }
         },
         "System.Xml": {
             "BinXmlDateTime": {
                 "Method": {
-                    ".cctor": ["void", true],
-                    "GetFractions": ["int", true],
-                    "SqlDateTimeToString": ["string", true],
-                    "SqlDateTimeToDateTime": ["DateTime", false],
-                    "XsdKatmaiDateOffsetToDateTimeOffset": ["DateTimeOffset", false],
-                    "GetKatmaiDateTicks": ["long", true],
+                    ".cctor": ["", "void", true],
+                    "GetFractions": ["", "int", true],
+                    "SqlDateTimeToString": ["", "string", true],
+                    "SqlDateTimeToDateTime": ["", "DateTime", false],
+                    "XsdKatmaiDateOffsetToDateTimeOffset": ["", "DateTimeOffset", false],
+                    "GetKatmaiDateTicks": ["", "long", true],
                 }
             }
         },
         "Unity.Burst.Intrinsics": {
             "Common": {
                 "Method": {
-                    "umul128": ["ulong", true],
+                    "umul128": ["", "ulong", true],
                 }
             },
             "v128": {
@@ -274,16 +303,16 @@ function GlobalMetadata(reader) {
                     "m_Value": ["private", "v64", true],
                 },
                 "Method": {
-                    "get_Byte": ["byte[]", true],
-                    "get_SByte": ["sbyte[]", true],
-                    "get_UShort": ["ushort[]", true],
-                    "get_SShort": ["short[]", true],
-                    "get_UInt": ["uint[]", true],
-                    "get_SInt": ["int[]", true],
-                    "get_Float": ["float[]", true],
-                    "get_SLong": ["long[]", true],
-                    "get_ULong": ["ulong[]", true],
-                    "get_Double": ["double[]", true],
+                    "get_Byte": ["", "byte[]", true],
+                    "get_SByte": ["", "sbyte[]", true],
+                    "get_UShort": ["", "ushort[]", true],
+                    "get_SShort": ["", "short[]", true],
+                    "get_UInt": ["", "uint[]", true],
+                    "get_SInt": ["", "int[]", true],
+                    "get_Float": ["", "float[]", true],
+                    "get_SLong": ["", "long[]", true],
+                    "get_ULong": ["", "ulong[]", true],
+                    "get_Double": ["", "double[]", true],
                 }
             },
             "V128DebugView": {
@@ -291,16 +320,16 @@ function GlobalMetadata(reader) {
                     "m_Value": ["private", "v128", true],
                 },
                 "Method": {
-                    "get_Byte": ["byte[]", true],
-                    "get_SByte": ["sbyte[]", true],
-                    "get_UShort": ["ushort[]", true],
-                    "get_SShort": ["short[]", true],
-                    "get_UInt": ["uint[]", true],
-                    "get_SInt": ["int[]", true],
-                    "get_Float": ["float[]", true],
-                    "get_SLong": ["long[]", true],
-                    "get_ULong": ["ulong[]", true],
-                    "get_Double": ["double[]", true],
+                    "get_Byte": ["", "byte[]", true],
+                    "get_SByte": ["", "sbyte[]", true],
+                    "get_UShort": ["", "ushort[]", true],
+                    "get_SShort": ["", "short[]", true],
+                    "get_UInt": ["", "uint[]", true],
+                    "get_SInt": ["", "int[]", true],
+                    "get_Float": ["", "float[]", true],
+                    "get_SLong": ["", "long[]", true],
+                    "get_ULong": ["", "ulong[]", true],
+                    "get_Double": ["", "double[]", true],
                 }
             },
             "V256DebugView": {
@@ -308,24 +337,30 @@ function GlobalMetadata(reader) {
                     "m_Value": ["private", "v256", true],
                 },
                 "Method": {
-                    "get_Byte": ["byte[]", true],
-                    "get_SByte": ["sbyte[]", true],
-                    "get_UShort": ["ushort[]", true],
-                    "get_SShort": ["short[]", true],
-                    "get_UInt": ["uint[]", true],
-                    "get_SInt": ["int[]", true],
-                    "get_Float": ["float[]", true],
-                    "get_SLong": ["long[]", true],
-                    "get_ULong": ["ulong[]", true],
-                    "get_Double": ["double[]", true],
+                    "get_Byte": ["", "byte[]", true],
+                    "get_SByte": ["", "sbyte[]", true],
+                    "get_UShort": ["", "ushort[]", true],
+                    "get_SShort": ["", "short[]", true],
+                    "get_UInt": ["", "uint[]", true],
+                    "get_SInt": ["", "int[]", true],
+                    "get_Float": ["", "float[]", true],
+                    "get_SLong": ["", "long[]", true],
+                    "get_ULong": ["", "ulong[]", true],
+                    "get_Double": ["", "double[]", true],
                 }
             }
         },
         "UnityEngine": {
+            "AnimatorClipInfo": {
+                "Field": {
+                    "m_ClipInstanceID": ["private", "int", true],
+                    "m_Weight": ["private", "float", true],
+                }
+            },
             "AssetBundle": {
                 "Method": {
-                    "LoadAsset": ["Object", true],
-                    "GetAllScenePaths": ["string[]", true],
+                    "LoadAsset": ["", "Object", true],
+                    "GetAllScenePaths": ["", "string[]", true],
                 }
             }
         },
@@ -341,6 +376,44 @@ function GlobalMetadata(reader) {
                 },
             },
         },
+        "UnityEngine.Rendering": {
+            "CoreUtils": {
+                "Field": {
+                    "editMenuPriority1": ["public const", "int", true],
+                },
+            },
+            "VolumeParameter": {
+                "Field": {
+                    "k_DebuggerDisplay": ["public const", "string", true],
+                    "m_OverrideState": ["protected", "bool", true],
+                },
+            },
+        },
+        "UnityEngine.Rendering.Universal.Internal": {
+            "DeferredConfig": {
+                "Field": {
+                    "kPreferredCBufferSize": ["public const", "int", true],
+                    "kTilerDepth": ["public const", "int", true],
+                    "kHasNativeQuadSupport": ["public const", "bool", true],
+                },
+            },
+        },
+        "UnityEngine.Timeline": {
+            "TimeNotificationBehaviour": {
+                "Field": {
+                    "m_PreviousTime": ["private", "double", true],
+                    "m_NeedSortNotifications": ["private", "bool", true],
+                },
+            },
+        },
+        "UnityEngine.U2D.Animation": {
+            "SpriteLibrary": {
+                "Field": {
+                    "m_PreviousSpriteLibraryAsset": ["private", "int", true],
+                    "m_PreviousModificationHash": ["private", "long", true],
+                },
+            },
+        },
         "UnityEngine.UI": {
             "Text": {
                 "Field": {
@@ -348,15 +421,15 @@ function GlobalMetadata(reader) {
                     "m_DisableFontTextureRebuiltCallback": ["protected", "bool", true],
                 },
                 "Property": {
-                    "font": ["Font", false],
-                    "text": ["string", true],
-                    "fontSize": ["int", true],
-                    "supportRichText": ["bool", true],
-                    "lineSpacing": ["float", true],
+                    "font": ["", "Font", false],
+                    "text": ["", "string", true],
+                    "fontSize": ["", "int", true],
+                    "supportRichText": ["", "bool", true],
+                    "lineSpacing": ["", "float", true],
                 },
                 "Method": {
-                    ".ctor": ["void", true],
-                }
+                    ".ctor": ["", "void", true],
+                },
             },
             "ColorBlock": {
                 "Field": {
@@ -364,21 +437,21 @@ function GlobalMetadata(reader) {
                     "m_FadeDuration": ["private", "float", true],
                 },
                 "Property": {
-                    "normalColor": ["Color", false],
+                    "normalColor": ["", "Color", false],
                 },
             }
         },
         "UnityEngine.XR": {
             "XRNodeState": {
                 "Property": {
-                    "uniqueID": ["ulong", true],
+                    "uniqueID": ["", "ulong", true],
                 }
             }
         },
     }
     function addType(typeIndex, targetType) {
         knownTypes[typeIndex] = targetType;
-        console.log("Resolved Type: " + typeIndex + " -> " + targetType[0]);
+        console.log("Resolved Type: " + typeIndex + " -> " + targetType[1]);
     }
     function addField(typeIndex, targetType) {
         knownFields[typeIndex] = targetType;
