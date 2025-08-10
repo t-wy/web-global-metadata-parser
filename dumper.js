@@ -1,5 +1,6 @@
 function dump_images(entry) {
     var children = [];
+    entry.content.push(`// Metadata Version: ${entry.metadata.header.version}`);
     for (var imageIndex = 0; imageIndex < entry.metadata.imageDefinitions.length; imageIndex++) {
         var imageDefinition = entry.metadata.imageDefinitions[imageIndex];
         entry.content.push(`// Image ${imageIndex}: ${imageDefinition.name} - ${imageDefinition.typeStart}`);
@@ -421,6 +422,9 @@ function dump_typedef(entry) {
                 }
                 // var parameterStr = "";
                 var parameterDef = metadata.parameterDefinitions[methodDef.parameterStart + j];
+                if (parameterDef === undefined) {
+                    parameterDef = {};
+                }
                 // var parameterName = parameterDef.name;
                 // var parameterType = `il2Cpp.types[${parameterDef.typeIndex}]`;
                 // var parameterTypeName = `${GetTypeName(metadata, parameterDef.typeIndex)}`;
@@ -607,8 +611,10 @@ function ResolveSlice(metadata, content) {
         } else if (type == 0x04) { // IL2CPP_TYPE_I1
             var temp = reader.readByte();
             return temp > 127 ? temp - 256 : temp;
-        } else if (type == 0x02) { // IL2CPP_TYPE_CHAR
-            return reader.readBytes(2);
+        } else if (type == 0x03) { // IL2CPP_TYPE_CHAR
+            var lo = reader.readByte();
+            var hi = reader.readByte();
+            return String.fromCharCode((hi << 8) || lo); // UTF-16
         } else if (type == 0x07) { // IL2CPP_TYPE_U2
             return reader.readUShort();
         } else if (type == 0x06) { // IL2CPP_TYPE_I2
@@ -760,6 +766,13 @@ function ResolveSliceAsString(metadata, content) {
     var all_entries = [];
     result.forEach(entry => {
         var entries = [];
+        if (entry.typeDef === undefined) {
+            entries.push(["["]);
+            entries.push(["???", "class"]);
+            entries.push(["]"]);
+            all_entries.push(entries);
+            return;
+        }
         var typeName = entry.typeDef.name;
         if (typeName.endsWith("Attribute")) {
             typeName = typeName.substr(0, typeName.length - "Attribute".length);

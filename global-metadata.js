@@ -231,6 +231,18 @@ function GlobalMetadata(reader) {
                 }
             }
         },
+        "System.Xml": {
+            "BinXmlDateTime": {
+                "Method": {
+                    ".cctor": ["void", true],
+                    "GetFractions": ["int", true],
+                    "SqlDateTimeToString": ["string", true],
+                    "SqlDateTimeToDateTime": ["DateTime", false],
+                    "XsdKatmaiDateOffsetToDateTimeOffset": ["DateTimeOffset", false],
+                    "GetKatmaiDateTicks": ["long", true],
+                }
+            }
+        },
         "Unity.Burst.Intrinsics": {
             "Common": {
                 "Method": {
@@ -404,11 +416,20 @@ function GlobalMetadata(reader) {
                 }
                 var typeIndex = null;
                 if (propertyDef.get >= 0) {
-                    typeIndex = this.methodDefinitions[typeDef.methodStart + propertyDef.get].returnType;
+                    var methodDef = this.methodDefinitions[typeDef.methodStart + propertyDef.set];
+                    typeIndex = methodDef.returnType;
                 } else if (propertyDef.set >= 0) {
-                    typeIndex = this.parameterDefinitions[this.methodDefinitions[typeDef.methodStart + propertyDef.set].parameterStart].typeIndex;
+                    var methodDef = this.methodDefinitions[typeDef.methodStart + propertyDef.set];
+                    var parameterDef = this.parameterDefinitions[methodDef.parameterStart];
+                    if (parameterDef) {
+                        typeIndex = parameterDef.typeIndex;
+                    }
                 }
-                addType(typeIndex, targetType);
+                if (typeIndex !== null) {
+                    addType(typeIndex, targetType);
+                } else {
+                    console.log("Failed to resolve Property: " + typeDef.name + "." + propertyDef.name);
+                }
             }
         }
         if (knownTypeLocationTypeDef.Method) {
@@ -719,6 +740,9 @@ function Il2CppMethodDefinition(reader, version) {
     this.nameIndex = reader.readUInt();
     this.declaringType = reader.readInt();
     this.returnType = reader.readInt();
+    if (version >= 31) {
+        this.returnParameterToken = reader.readInt();
+    }
     this.parameterStart = reader.readInt();
     if (version <= 24) {
         this.customAttributeIndex = reader.readInt();
