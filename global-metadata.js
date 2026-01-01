@@ -597,6 +597,28 @@ function GlobalMetadata(reader) {
     if (this.header.version <= 24.1) {
         this.rgctxEntries = read_class_array(reader, this.header.rgctxEntriesOffset, this.header.rgctxEntriesCount, Il2CppRGCTXDefinition);
     }
+    // resolve default values
+    var dataIndicesSet = new Set();
+    for (field of Object.values(this.fieldDefaultValues)) {
+        if (field.dataIndex !== -1) {
+            dataIndicesSet.add(field.dataIndex);
+        }
+    }
+    for (field of Object.values(this.parameterDefaultValues)) {
+        if (field.dataIndex !== -1) {
+            dataIndicesSet.add(field.dataIndex);
+        }
+    }
+    dataIndicesSet.add(this.header.fieldAndParameterDefaultValueDataSize);
+    var dataIndices = Array.from(dataIndicesSet).sort((a, b) => a - b);
+    this.fieldDefaultValuesRaw = {};
+    var offset = this.header.fieldAndParameterDefaultValueDataOffset;
+    for (var i = 0; i < dataIndices.length - 1; ++i) {
+        var start = dataIndices[i];
+        var end = dataIndices[i + 1];
+        reader.seek(offset + start);
+        this.fieldDefaultValuesRaw[start] = reader.readBytes(end - start);
+    }
 }
 
 function MetadataHeader(reader, version) {

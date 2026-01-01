@@ -285,6 +285,15 @@ function dump_typedef(entry) {
             // if (metadata.GetFieldDefaultValueFromIndex(i, fieldDefaultValue) && fieldDefaultValue.dataIndex != -1)
             if ((fieldDefaultValue = metadata.fieldDefaultValues[i]) && fieldDefaultValue.dataIndex != -1)
             {
+                var value = GetDefaultValue(metadata, fieldDefaultValue.typeIndex, fieldDefaultValue.dataIndex);
+                writer.Write(` = `);
+                if (value == "???") {
+                    writer.Write(value, "const");
+                } else if (typeof value === "number") {
+                    writer.Write(value, "const");
+                } else {
+                    writer.Write(JSON.stringify(value), "string");
+                }
                 // if (executor.TryGetDefaultValue(fieldDefaultValue.typeIndex, fieldDefaultValue.dataIndex, value))
                 // {
                 //     writer.Write(` = `);
@@ -460,7 +469,16 @@ function dump_typedef(entry) {
                 writer.Write(parameterDef.name);
                 if ((parameterDefault = metadata.parameterDefaultValues[methodDef.parameterStart + j]) && parameterDefault && parameterDefault.dataIndex != -1)
                 {
-                    var value = `executor.TryGetDefaultValue(${parameterDefault.typeIndex}, ${parameterDefault.dataIndex}, ${value})`;
+                    var value = GetDefaultValue(metadata, parameterDefault.typeIndex, parameterDefault.dataIndex);
+                    writer.Write(` = `);
+                    if (value == "???") {
+                        writer.Write(value, "const");
+                    } else if (typeof value === "number") {
+                        writer.Write(value, "const");
+                    } else {
+                        writer.Write(JSON.stringify(value), "string");
+                    }
+                    // var value = `executor.TryGetDefaultValue(${parameterDefault.typeIndex}, ${parameterDefault.dataIndex}, ${value})`;
                     // if (executor.TryGetDefaultValue(parameterDefault.typeIndex, parameterDefault.dataIndex, value))
                     // {
                     //     parameterStr += " = ";
@@ -485,7 +503,7 @@ function dump_typedef(entry) {
                     // else
                     // {
                         // parameterStr += ` /*Metadata offset 0x${value.toString(16)}*/`;
-                        writer.Write(` /*Metadata offset 0x${value.toString(16)}*/`, "comment")
+                        // writer.Write(` /*Metadata offset 0x${value.toString(16)}*/`, "comment")
                     // }
                 }
                 // parameterStrs.push(parameterStr);
@@ -585,6 +603,180 @@ function WriteModifiers(writer, methodDef)
     // return str;
 }
 
+function GetDefaultValue(metadata, typeIndex, dataIndex) {
+    var defaultValueType = metadata.knownTypes[typeIndex];
+    if (defaultValueType === undefined) {
+        return "???";
+    }
+    var defaultValueTypeType = (
+        defaultValueType[1].slice(-2) === "[]" ?
+        Il2CppTypeEnum.IL2CPP_TYPE_SZARRAY :
+        known_type_enum_map[defaultValueType[1]]
+    );
+    if (defaultValueTypeType === undefined) {
+        return "???";
+    }
+    var content = metadata.fieldDefaultValuesRaw[dataIndex];
+    try {
+        return GetConstantValueFromBytes(content, defaultValueTypeType);
+    } catch (e) {
+        return "???";
+    }
+}
+
+function GetConstantValueFromBytes(content, type) {
+    var reader = new LittleEndianReader(content);
+    return GetConstantValueFromBlob(reader, type);
+}
+
+function ReadEncodedTypeEnum(reader) {
+    var type = reader.readByte();
+    if (type == Il2CppTypeEnum.IL2CPP_TYPE_ENUM) {
+        var enumTypeIndex = read_compressed_uint32(reader);
+        return `il2Cpp.types[${enumTypeIndex}]`;
+    } else {
+        return type;
+    }
+}
+
+var Il2CppTypeEnum = {
+    IL2CPP_TYPE_END: 0x00,
+    IL2CPP_TYPE_VOID: 0x01,
+    IL2CPP_TYPE_BOOLEAN: 0x02,
+    IL2CPP_TYPE_CHAR: 0x03,
+    IL2CPP_TYPE_I1: 0x04,
+    IL2CPP_TYPE_U1: 0x05,
+    IL2CPP_TYPE_I2: 0x06,
+    IL2CPP_TYPE_U2: 0x07,
+    IL2CPP_TYPE_I4: 0x08,
+    IL2CPP_TYPE_U4: 0x09,
+    IL2CPP_TYPE_I8: 0x0a,
+    IL2CPP_TYPE_U8: 0x0b,
+    IL2CPP_TYPE_R4: 0x0c,
+    IL2CPP_TYPE_R8: 0x0d,
+    IL2CPP_TYPE_STRING: 0x0e,
+    IL2CPP_TYPE_PTR: 0x0f,
+    IL2CPP_TYPE_BYREF: 0x10,
+    IL2CPP_TYPE_VALUETYPE: 0x11,
+    IL2CPP_TYPE_CLASS: 0x12,
+    IL2CPP_TYPE_VAR: 0x13,
+    IL2CPP_TYPE_ARRAY: 0x14,
+    IL2CPP_TYPE_GENERICINST: 0x15,
+    IL2CPP_TYPE_TYPEDBYREF: 0x16,
+    IL2CPP_TYPE_I: 0x18,
+    IL2CPP_TYPE_U: 0x19,
+    IL2CPP_TYPE_FNPTR: 0x1b,
+    IL2CPP_TYPE_OBJECT: 0x1c,
+    IL2CPP_TYPE_SZARRAY: 0x1d,
+    IL2CPP_TYPE_MVAR: 0x1e,
+    IL2CPP_TYPE_CMOD_REQD: 0x1f,
+    IL2CPP_TYPE_CMOD_OPT: 0x20,
+    IL2CPP_TYPE_INTERNAL: 0x21,
+    IL2CPP_TYPE_MODIFIER: 0x40,
+    IL2CPP_TYPE_SENTINEL: 0x41,
+    IL2CPP_TYPE_PINNED: 0x45,
+    IL2CPP_TYPE_ENUM: 0x55,
+    IL2CPP_TYPE_IL2CPP_TYPE_INDEX: 0xff,
+}
+
+var known_type_enum_map = {
+    "bool": Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN,
+    "char": Il2CppTypeEnum.IL2CPP_TYPE_CHAR,
+    "sbyte": Il2CppTypeEnum.IL2CPP_TYPE_I1,
+    "byte": Il2CppTypeEnum.IL2CPP_TYPE_U1,
+    "short": Il2CppTypeEnum.IL2CPP_TYPE_I2,
+    "ushort": Il2CppTypeEnum.IL2CPP_TYPE_U2,
+    "int": Il2CppTypeEnum.IL2CPP_TYPE_I4,
+    "uint": Il2CppTypeEnum.IL2CPP_TYPE_U4,
+    "long": Il2CppTypeEnum.IL2CPP_TYPE_I8,
+    "ulong": Il2CppTypeEnum.IL2CPP_TYPE_U8,
+    "float": Il2CppTypeEnum.IL2CPP_TYPE_R4,
+    "double": Il2CppTypeEnum.IL2CPP_TYPE_R8,
+    "string": Il2CppTypeEnum.IL2CPP_TYPE_STRING,
+    "IntPtr": Il2CppTypeEnum.IL2CPP_TYPE_I,
+    "UIntPtr": Il2CppTypeEnum.IL2CPP_TYPE_U,
+    "object": Il2CppTypeEnum.IL2CPP_TYPE_OBJECT
+}
+
+function GetConstantValueFromBlob(reader, type) {
+    if (type == Il2CppTypeEnum.IL2CPP_TYPE_BOOLEAN) {
+        return reader.readByte() == 1;
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_U1) {
+        return reader.readByte();
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_I1) {
+        var temp = reader.readByte();
+        return temp > 127 ? temp - 256 : temp;
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_CHAR) {
+        var lo = reader.readByte();
+        var hi = reader.readByte();
+        return String.fromCharCode((hi << 8) || lo); // UTF-16
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_U2) {
+        return reader.readUShort();
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_I2) {
+        return reader.readShort();
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_U4) {
+        if (metadata.header.version >= 29) {
+            return read_compressed_uint32(reader);
+        } else {
+            return reader.readUInt();
+        }
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_I4) {
+        if (metadata.header.version >= 29) {
+            return read_compressed_int32(reader);
+        } else {
+            return reader.readInt();
+        }
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_U8) {
+        return reader.readULong();
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_I8) {
+        return reader.readLong();
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_R4) {
+        return reader.readSingle();
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_R8) {
+        return reader.readDouble();
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_STRING) {
+        var length;
+        if (metadata.header.version >= 29) {
+            length = read_compressed_int32(reader);
+            if (length === -1) {
+                return null;
+            } else {
+                return reader.readString(length);
+            }
+        } else {
+            length = reader.readInt();
+            return reader.readString(length);
+        }
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_SZARRAY) {
+        var arrayLen = read_compressed_int32(reader);
+        if (arrayLen === -1) {
+            return null;
+        } else {
+            var array = [];
+            var arrayElementType = ReadEncodedTypeEnum(reader);
+            var arrayElementsAreDifferent = reader.readByte();
+            for (var i = 0; i < arrayLen; i++) {
+                var elementType = arrayElementType;
+                if (arrayElementsAreDifferent == 1) {
+                    elementType = ReadEncodedTypeEnum(reader);
+                }
+                var elementValue = GetConstantValueFromBlob(reader, elementType);
+                array.push(elementValue);
+            }
+            return array;
+        }
+    } else if (type == Il2CppTypeEnum.IL2CPP_TYPE_IL2CPP_TYPE_INDEX) {
+        var typeIndex = read_compressed_int32(reader);
+        if (typeIndex === -1) {
+            return null;
+        } else {
+            return `il2Cpp.types[${typeIndex}]`;
+        }
+    } else {
+        return null;
+    }
+}
+
 function ResolveSlice(metadata, content) {
     var ReadCustomAttributeNamedArgumentClassAndIndex = function (typeDef) {
         var memberIndex = read_compressed_int32(reader);
@@ -594,97 +786,9 @@ function ResolveSlice(metadata, content) {
         var declaringClass = metadata.typeDefinitions[typeIndex];
         return [declaringClass, memberIndex];
     }
-    var ReadEncodedTypeEnum = function () {
-        var type = reader.readByte();
-        if (type == 0x55) { // IL2CPP_TYPE_ENUM
-            var enumTypeIndex = read_compressed_uint32(reader);
-            return `il2Cpp.types[${enumTypeIndex}]`;
-        } else {
-            return type;
-        }
-    }
-    var GetConstantValueFromBlob = function (type) {
-        if (type == 0x02) { // IL2CPP_TYPE_BOOLEAN
-            return reader.readByte() == 1;
-        } else if (type == 0x05) { // IL2CPP_TYPE_U1
-            return reader.readByte();
-        } else if (type == 0x04) { // IL2CPP_TYPE_I1
-            var temp = reader.readByte();
-            return temp > 127 ? temp - 256 : temp;
-        } else if (type == 0x03) { // IL2CPP_TYPE_CHAR
-            var lo = reader.readByte();
-            var hi = reader.readByte();
-            return String.fromCharCode((hi << 8) || lo); // UTF-16
-        } else if (type == 0x07) { // IL2CPP_TYPE_U2
-            return reader.readUShort();
-        } else if (type == 0x06) { // IL2CPP_TYPE_I2
-            return reader.readShort();
-        } else if (type == 0x09) { // IL2CPP_TYPE_U4
-            if (metadata.header.version >= 29) {
-                return read_compressed_uint32(reader);
-            } else {
-                return reader.readUInt();
-            }
-        } else if (type == 0x08) { // IL2CPP_TYPE_I4
-            if (metadata.header.version >= 29) {
-                return read_compressed_int32(reader);
-            } else {
-                return reader.readInt();
-            }
-        } else if (type == 0x0B) { // IL2CPP_TYPE_U8
-            return reader.readULong();
-        } else if (type == 0x0A) { // IL2CPP_TYPE_I8
-            return reader.readLong();
-        } else if (type == 0x0C) { // IL2CPP_TYPE_R4
-            return reader.readSingle();
-        } else if (type == 0x0D) { // IL2CPP_TYPE_R8
-            return reader.readDouble();
-        } else if (type == 0x0E) { // IL2CPP_TYPE_STRING
-            var length;
-            if (metadata.header.version >= 29) {
-                length = read_compressed_int32(reader);
-                if (length === -1) {
-                    return null;
-                } else {
-                    return reader.readString(length);
-                }
-            } else {
-                length = reader.readInt();
-                return reader.readString(length);
-            }
-        } else if (type == 0x1D) { // IL2CPP_TYPE_SZARRAY
-            var arrayLen = read_compressed_int32(reader);
-            if (arrayLen === -1) {
-                return null;
-            } else {
-                var array = [];
-                var arrayElementType = ReadEncodedTypeEnum();
-                var arrayElementsAreDifferent = reader.readByte();
-                for (var i = 0; i < arrayLen; i++) {
-                    var elementType = arrayElementType;
-                    if (arrayElementsAreDifferent == 1) {
-                        elementType = ReadEncodedTypeEnum();
-                    }
-                    var elementValue = GetConstantValueFromBlob(elementType);
-                    array.push(elementValue);
-                }
-                return array;
-            }
-        } else if (type == 0xFF) { // IL2CPP_TYPE_IL2CPP_TYPE_INDEX
-            var typeIndex = read_compressed_int32(reader);
-            if (typeIndex === -1) {
-                return null;
-            } else {
-                return `il2Cpp.types[${typeIndex}]`;
-            }
-        } else {
-            return null;
-        }
-        // GetConstantValueFromBlob
-    }
     var ReadAttributeDataValue = function () {
-        var type = ReadEncodedTypeEnum();
-        return GetConstantValueFromBlob(type);
+        var type = ReadEncodedTypeEnum(reader);
+        return GetConstantValueFromBlob(reader, type);
     }
     var reader = new LittleEndianReader(content);
     var count = read_compressed_uint32(reader);
@@ -698,9 +802,9 @@ function ResolveSlice(metadata, content) {
         var argumentCount = read_compressed_uint32(reader);
         var fieldCount = read_compressed_uint32(reader);
         var propertyCount = read_compressed_uint32(reader);
-        var arguments = [];
+        var args = [];
         for (var i = 0; i < argumentCount; i++) {
-            arguments.push([ReadAttributeDataValue()]);
+            args.push([ReadAttributeDataValue()]);
         }
         // var fields = [];
         for (var i = 0; i < fieldCount; i++) {
@@ -708,7 +812,7 @@ function ResolveSlice(metadata, content) {
             var [declaring, fieldIndex] = ReadCustomAttributeNamedArgumentClassAndIndex(typeDef);
             var fieldDef = metadata.fieldDefinitions[declaring.fieldStart + fieldIndex];
             // fields.push([
-            arguments.push([
+            args.push([
                 fieldDef.name,
                 temp
             ]);
@@ -719,7 +823,7 @@ function ResolveSlice(metadata, content) {
             var [declaring, propertyIndex] = ReadCustomAttributeNamedArgumentClassAndIndex(typeDef);
             var propertyDef = metadata.propertyDefs[declaring.propertyStart + propertyIndex];
             // fields.push([
-            arguments.push([
+            args.push([
                 propertyDef.name,
                 temp
             ]);
@@ -727,7 +831,7 @@ function ResolveSlice(metadata, content) {
         attributes.push({
             ctorIndex: ctorIndices[j],
             typeDef: typeDef,
-            arguments: arguments,
+            arguments: args,
             // fields: fields,
             properties: properties
         });
