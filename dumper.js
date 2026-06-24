@@ -22,6 +22,7 @@ function dump_imagedef(entry) {
     var imageDefinition = entry.value;
     var typeEnd = imageDefinition.typeStart + imageDefinition.typeCount;
     var children = {};
+    entry.content.push(`// TypeDefIndex: ${imageDefinition.typeStart} ~ ${typeEnd} (Total: ${imageDefinition.typeCount})`);
     for (var typeDefIndex = imageDefinition.typeStart; typeDefIndex < typeEnd; typeDefIndex++)
     {
         var typeDef = metadata.typeDefinitions[typeDefIndex];
@@ -279,7 +280,7 @@ function dump_typedef(entry) {
             //         writer.Write("readonly ");
             //     }
             // }
-            WriteFieldName(writer, metadata, fieldDef.typeIndex);
+            WriteTypeName(writer, metadata, fieldDef.typeIndex);
             writer.Write(" ");
             writer.Write(fieldDef.name);
             // if (metadata.GetFieldDefaultValueFromIndex(i, fieldDefaultValue) && fieldDefaultValue.dataIndex != -1)
@@ -919,21 +920,10 @@ function WriteTypeName(writer, metadata, typeIndex) {
     if (temp === undefined) {
         writer.Write(`il2Cpp.types[${typeIndex}]`, "class");
     } else {
-        if (temp[2]) { // keyword type
-            writer.Write(temp[1], "keyword");
-        } else {
-            writer.Write(temp[1], "class");
+        if (temp[0] !== "") {
+            writer.Write(temp[0], "keyword");
+            writer.Write(" ");
         }
-    }
-}
-
-function WriteFieldName(writer, metadata, typeIndex) {
-    var temp = metadata.knownFields[typeIndex];
-    if (temp === undefined) {
-        writer.Write(`il2Cpp.types[${typeIndex}]`, "class");
-    } else {
-        writer.Write(temp[0], "keyword");
-        writer.Write(" ");
         if (temp[2]) { // keyword type
             writer.Write(temp[1], "keyword");
         } else {

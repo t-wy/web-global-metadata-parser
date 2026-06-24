@@ -136,8 +136,7 @@ function GlobalMetadata(reader) {
         resolve_name(temp);
     }
 
-    var knownTypes = {}; // [typeName, isKeyword]
-    var knownFields = {}; // [attrs, typeName, isKeyword]
+    var knownTypes = {}; // [attrs, typeName, isKeyword]
     // window.metadata = this;
     // try resolve common types
     var knownTypeLocation = {
@@ -453,10 +452,6 @@ function GlobalMetadata(reader) {
         knownTypes[typeIndex] = targetType;
         console.log("Resolved Type: " + typeIndex + " -> " + targetType[1]);
     }
-    function addField(typeIndex, targetType) {
-        knownFields[typeIndex] = targetType;
-        console.log("Resolved Field: " + typeIndex + " -> " + targetType[1]);
-    }
     for (var typeDef of this.typeDefinitions) {
         var knownTypeLocationType = knownTypeLocation[typeDef.namespace];
         if (knownTypeLocationType === undefined) {
@@ -476,7 +471,7 @@ function GlobalMetadata(reader) {
                     continue;
                 }
                 var typeIndex = fieldDef.typeIndex;
-                addField(typeIndex, targetType);
+                addType(typeIndex, targetType);
             }
         }
         if (knownTypeLocationTypeDef.Property) {
@@ -519,7 +514,6 @@ function GlobalMetadata(reader) {
         }
     }
     this.knownTypes = knownTypes;
-    this.knownFields = knownFields;
 
     this.interfaceIndices = read_func_array(reader, this.header.interfacesOffset, this.header.interfacesSize, _=>reader.readInt());
     this.nestedTypeIndices = read_func_array(reader, this.header.nestedTypesOffset, this.header.nestedTypesSize, _=>reader.readInt());
