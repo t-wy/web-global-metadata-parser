@@ -74,7 +74,7 @@ function GlobalMetadata(reader) {
     }
     // Differentiate version 24
     if (this.header.version === 24) {
-        if (header.stringLiteralOffset === 264) {
+        if (this.header.stringLiteralOffset === 264) {
             // exclude rgctxEntries
             reader.seek(0);
             this.header = new MetadataHeader(reader, 24.2);
