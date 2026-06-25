@@ -48,28 +48,42 @@ function read_compressed_int32(reader) {
 // classes
 function GlobalMetadata(reader) {
     var _this = this;
+    var resolved_names = {}; // memorize
+    var resolve_name_internal = function(offset) {
+        var temp = resolved_names[offset];
+        if (temp !== undefined) return temp;
+        reader.seek(_this.header.stringOffset + offset);
+        var result = reader.readNullString();
+        return resolved_names[offset] = result;
+    }
     var resolve_name = function(cls) {
-        reader.seek(_this.header.stringOffset + cls.nameIndex);
-        cls.name = reader.readNullString();
+        cls.name = resolve_name_internal(cls.nameIndex);
         if (cls.namespaceIndex) {
-            reader.seek(_this.header.stringOffset + cls.namespaceIndex);
-            cls.namespace = reader.readNullString();
+            cls.namespace = resolve_name_internal(cls.namespaceIndex);
+        }
+    }
+    var resolve_name_debug = function(cls) {
+        cls.name = resolve_name_internal(cls.nameIndex);
+        console.debug("Resolved Name: " + cls.name);
+        if (cls.namespaceIndex) {
+            cls.namespace = resolve_name_internal(cls.namespaceIndex);
+            console.debug("Resolved Namespace: " + cls.namespace);
         }
     }
     var read_class_array = function(reader, offset, size, cls) {
         var result = [];
         reader.seek(offset);
         while (reader.tell() < offset + size) {
-            result.push(new cls(reader, _this.header.version));
+            result.push(new cls(reader, _this.header.version, _this.sizes)); // parse sizes which may possibly be used
         }
         reader.seek(offset + size); // safe guard
         return result;
     }
-    this.header = new MetadataHeader(reader);
+    this.header = new Il2CppGlobalMetadataHeader(reader);
     if (this.header.sanity !== 0xFAB11BAF) {
         throw Error("Magic number not match.");
     }
-    if (this.header.version < 16 || this.header.version > 31) {
+    if (this.header.version < 16 || this.header.version > 39 || [30, 32, 33, 34, 35, 36, 37, 38].includes(this.header.version)) {
         throw Error("Metadata version not supported.");
     }
     // Differentiate version 24
@@ -77,7 +91,7 @@ function GlobalMetadata(reader) {
         if (this.header.stringLiteralOffset === 264) {
             // exclude rgctxEntries
             reader.seek(0);
-            this.header = new MetadataHeader(reader, 24.2);
+            this.header = new Il2CppGlobalMetadataHeader(reader, 24.2);
         } else {
             this.imageDefinitions = read_class_array(reader, this.header.imagesOffset, this.header.imagesSize, Il2CppImageDefinition);
             if (this.imageDefinitions.some(entry => entry.token !== 1)) {
@@ -85,6 +99,43 @@ function GlobalMetadata(reader) {
             }
         }
     }
+
+    
+    if (this.header.version >= 38.0) {
+        var getIndexSize = function (numberOfElements) {
+            return (
+                numberOfElements < 256 ? 1 :
+                numberOfElements < 65536 ? 2 :
+                4
+            )
+        }
+
+        this.sizes = {};
+        this.sizes.typeIndex = undefined; // from MetadataRegistration->typesCount
+        this.sizes.typeDefinitionIndex = getIndexSize(
+            this.header.typeDefinitions.count
+        ); // from typeDefinitions.count
+        this.sizes.genericContainerIndex = getIndexSize(
+            this.header.genericContainers.count
+        ); // from genericContainers.count
+        this.sizes.parameterIndex = getIndexSize(
+            this.header.parameters.count
+        ); // from parameters.count
+
+        // try to determine typeIndexSize
+        if (this.header.interfaceOffsets.count > 0) {
+            // TypeIndex + int32_t
+            var entrySize = this.header.interfaceOffsets.size / this.header.interfaceOffsets.count;
+            this.sizes.typeIndex = entrySize - 4;
+        } else {
+            console.warn("Cannot determine sizes.typeIndex");
+        }
+    } else {
+        this.sizes = undefined;
+    }
+
+
+    // parse classes
     this.imageDefinitions = read_class_array(reader, this.header.imagesOffset, this.header.imagesSize, Il2CppImageDefinition);
     for (var temp of this.imageDefinitions) {
         resolve_name(temp);
@@ -99,7 +150,7 @@ function GlobalMetadata(reader) {
     if (fake_24_4) {
         this.header.version = 24.4;
     }
-    this.assemblyDefs = read_class_array(reader, this.header.assembliesOffset, this.header.assembliesSize, AssemblyDefinition);
+    this.assemblyDefs = read_class_array(reader, this.header.assembliesOffset, this.header.assembliesSize, Il2CppAssemblyDefinition);
     for (var temp of this.assemblyDefs) {
         resolve_name(temp.aname);
     }
@@ -530,9 +581,21 @@ function GlobalMetadata(reader) {
     this.vtableMethods = read_func_array(reader, this.header.vtableMethodsOffset, this.header.vtableMethodsSize, _=>reader.readUInt());
     this.stringLiterals = read_class_array(reader, this.header.stringLiteralOffset, this.header.stringLiteralSize, Il2CppStringLiteral);
     // resolve stringLiterals
-    for (var stringLiteral of this.stringLiterals) {
-        reader.seek(this.header.stringLiteralDataOffset + stringLiteral.dataIndex);
-        stringLiteral.value = read_string(reader, stringLiteral.length);
+    if (this.header.version >= 38.0) {
+        for (var stringLiteralIndex = 0; stringLiteralIndex + 1 < this.stringLiterals.length; ++stringLiteralIndex) {
+            var stringLiteral = this.stringLiterals[stringLiteralIndex];
+            var stringLiteralNext = this.stringLiterals[stringLiteralIndex + 1];
+            reader.seek(this.header.stringLiteralDataOffset + stringLiteral.dataIndex);
+            stringLiteral.value = read_string(reader, stringLiteralNext.dataIndex - stringLiteral.dataIndex);
+        }
+        if (this.stringLiterals.length > 0) {
+            this.stringLiterals[this.stringLiterals.length - 1].value = null;
+        }
+    } else {
+        for (var stringLiteral of this.stringLiterals) {
+            reader.seek(this.header.stringLiteralDataOffset + stringLiteral.dataIndex);
+            stringLiteral.value = read_string(reader, stringLiteral.length);
+        }
     }
 
     if (this.header.version >= 16) {
@@ -615,106 +678,469 @@ function GlobalMetadata(reader) {
     }
 }
 
-function MetadataHeader(reader, version) {
-    this.sanity = reader.readUInt()
-    this.version = reader.readInt()
-    this.stringLiteralOffset = reader.readUInt() // string data for managed code
-    this.stringLiteralSize = reader.readInt()
-    this.stringLiteralDataOffset = reader.readUInt()
-    this.stringLiteralDataSize = reader.readInt()
-    this.stringOffset = reader.readUInt() // string data for metadata
-    this.stringSize = reader.readInt()
-    this.eventsOffset = reader.readUInt() // Il2CppEventDefinition
-    this.eventsSize = reader.readInt()
-    this.propertiesOffset = reader.readUInt() // Il2CppPropertyDefinition
-    this.propertiesSize = reader.readInt()
-    this.methodsOffset = reader.readUInt() // Il2CppMethodDefinition
-    this.methodsSize = reader.readInt()
-    this.parameterDefaultValuesOffset = reader.readUInt() // Il2CppParameterDefaultValue
-    this.parameterDefaultValuesSize = reader.readInt()
-    this.fieldDefaultValuesOffset = reader.readUInt() // Il2CppFieldDefaultValue
-    this.fieldDefaultValuesSize = reader.readInt()
-    this.fieldAndParameterDefaultValueDataOffset = reader.readUInt() // uint8_t
-    this.fieldAndParameterDefaultValueDataSize = reader.readInt()
-    this.fieldMarshaledSizesOffset = reader.readInt() // Il2CppFieldMarshaledSize
-    this.fieldMarshaledSizesSize = reader.readInt()
-    this.parametersOffset = reader.readUInt() // Il2CppParameterDefinition
-    this.parametersSize = reader.readInt()
-    this.fieldsOffset = reader.readUInt() // Il2CppFieldDefinition
-    this.fieldsSize = reader.readInt()
-    this.genericParametersOffset = reader.readUInt() // Il2CppGenericParameter
-    this.genericParametersSize = reader.readInt()
-    this.genericParameterConstraintsOffset = reader.readUInt() // TypeIndex
-    this.genericParameterConstraintsSize = reader.readInt()
-    this.genericContainersOffset = reader.readUInt() // Il2CppGenericContainer
-    this.genericContainersSize = reader.readInt()
-    this.nestedTypesOffset = reader.readUInt() // Il2CppTypeDefinitionIndex
-    this.nestedTypesSize = reader.readInt()
-    this.interfacesOffset = reader.readUInt() // TypeIndex
-    this.interfacesSize = reader.readInt()
-    this.vtableMethodsOffset = reader.readUInt() // EncodedMethodIndex
-    this.vtableMethodsSize = reader.readInt()
-    this.interfaceOffsetsOffset = reader.readInt() // Il2CppInterfaceOffsetPair
-    this.interfaceOffsetsSize = reader.readInt()
-    this.typeDefinitionsOffset = reader.readUInt() // Il2CppIl2CppTypeDefinition
-    this.typeDefinitionsSize = reader.readInt()
+function Il2CppSectionMetadata(reader, version) {
+    // introduced since 39.0 (should be 38.0+, not confirmed) 
+    if (version >= 38.0) {
+        this.offset = reader.readInt();
+        this.size = reader.readInt();
+        this.count = reader.readInt();
+    } else {
+        // dummy placeholders
+        this.offset = undefined;
+        this.size = undefined;
+        this.count = undefined;
+    }
+}
+
+function Il2CppGlobalMetadataHeader(reader, version) {
+    this.sanity = reader.readUInt();
+    this.version = reader.readInt();
+    // override version if specified
     if (version !== undefined) {
-        this.version = version
+        this.version = version;
+    } else {
+        version = this.version;
+    }
+    if (this.version >= 38.0) {
+        this.stringLiterals = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.stringLiteralOffset = this.stringLiterals.offset;
+        this.stringLiteralSize = this.stringLiterals.size;
+    } else {
+        this.stringLiteralOffset = reader.readUInt(); // string data for managed code
+        this.stringLiteralSize = reader.readInt();
+        // forward-compatible
+        this.stringLiterals = new Il2CppSectionMetadata(reader, version);
+        this.stringLiterals.offset = this.stringLiteralOffset;
+        this.stringLiterals.size = this.stringLiteralSize;
+    }
+    if (this.version >= 38.0) {
+        this.stringLiteralData = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.stringLiteralDataOffset = this.stringLiteralData.offset;
+        this.stringLiteralDataSize = this.stringLiteralData.size;
+    } else {
+        this.stringLiteralDataOffset = reader.readUInt()
+        this.stringLiteralDataSize = reader.readInt()
+        // forward-compatible
+        this.stringLiteralData = new Il2CppSectionMetadata(reader, version);
+        this.stringLiteralData.offset = this.stringLiteralDataOffset;
+        this.stringLiteralData.size = this.stringLiteralDataSize;
+    }
+    if (this.version >= 38.0) {
+        this.strings = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.stringOffset = this.strings.offset;
+        this.stringSize = this.strings.size;
+    } else {
+        this.stringOffset = reader.readUInt() // string data for metadata
+        this.stringSize = reader.readInt()
+        // forward-compatible
+        this.strings = new Il2CppSectionMetadata(reader, version);
+        this.strings.offset = this.stringOffset;
+        this.strings.size = this.stringSize;
+    }
+    if (this.version >= 38.0) {
+        this.events = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.eventsOffset = this.events.offset;
+        this.eventsSize = this.events.size;
+    } else {
+        this.eventsOffset = reader.readUInt() // Il2CppEventDefinition
+        this.eventsSize = reader.readInt()
+        // forward-compatible
+        this.events = new Il2CppSectionMetadata(reader, version);
+        this.events.offset = this.eventsOffset;
+        this.events.size = this.eventsSize;
+    }
+    if (this.version >= 38.0) {
+        this.properties = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.propertiesOffset = this.properties.offset;
+        this.propertiesSize = this.properties.size;
+    } else {
+        this.propertiesOffset = reader.readUInt() // Il2CppPropertyDefinition
+        this.propertiesSize = reader.readInt()
+        // forward-compatible
+        this.properties = new Il2CppSectionMetadata(reader, version);
+        this.properties.offset = this.propertiesOffset;
+        this.properties.size = this.propertiesSize;
+    }
+    if (this.version >= 38.0) {
+        this.methods = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.methodsOffset = this.methods.offset;
+        this.methodsSize = this.methods.size;
+    } else {
+        this.methodsOffset = reader.readUInt() // Il2CppMethodDefinition
+        this.methodsSize = reader.readInt()
+        // forward-compatible
+        this.methods = new Il2CppSectionMetadata(reader, version);
+        this.methods.offset = this.methodsOffset;
+        this.methods.size = this.methodsSize;
+    }
+    if (this.version >= 38.0) {
+        this.parameterDefaultValues = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.parameterDefaultValuesOffset = this.parameterDefaultValues.offset;
+        this.parameterDefaultValuesSize = this.parameterDefaultValues.size;
+    } else {
+        this.parameterDefaultValuesOffset = reader.readUInt() // Il2CppParameterDefaultValue
+        this.parameterDefaultValuesSize = reader.readInt()
+        // forward-compatible
+        this.parameterDefaultValues = new Il2CppSectionMetadata(reader, version);
+        this.parameterDefaultValues.offset = this.parameterDefaultValuesOffset;
+        this.parameterDefaultValues.size = this.parameterDefaultValuesSize;
+    }
+    if (this.version >= 38.0) {
+        this.fieldDefaultValues = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.fieldDefaultValuesOffset = this.fieldDefaultValues.offset;
+        this.fieldDefaultValuesSize = this.fieldDefaultValues.size;
+    } else {
+        this.fieldDefaultValuesOffset = reader.readUInt() // Il2CppFieldDefaultValue
+        this.fieldDefaultValuesSize = reader.readInt()
+        // forward-compatible
+        this.fieldDefaultValues = new Il2CppSectionMetadata(reader, version);
+        this.fieldDefaultValues.offset = this.fieldDefaultValuesOffset;
+        this.fieldDefaultValues.size = this.fieldDefaultValuesSize;
+    }
+    if (this.version >= 38.0) {
+        this.fieldAndParameterDefaultValueData = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.fieldAndParameterDefaultValueDataOffset = this.fieldAndParameterDefaultValueData.offset;
+        this.fieldAndParameterDefaultValueDataSize = this.fieldAndParameterDefaultValueData.size;
+    } else {
+        this.fieldAndParameterDefaultValueDataOffset = reader.readUInt() // uint8_t
+        this.fieldAndParameterDefaultValueDataSize = reader.readInt()
+        // forward-compatible
+        this.fieldAndParameterDefaultValueData = new Il2CppSectionMetadata(reader, version);
+        this.fieldAndParameterDefaultValueData.offset = this.fieldAndParameterDefaultValueDataOffset;
+        this.fieldAndParameterDefaultValueData.size = this.fieldAndParameterDefaultValueDataSize;
+    }
+    if (this.version >= 38.0) {
+        this.fieldMarshaledSizes = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.fieldMarshaledSizesOffset = this.fieldMarshaledSizes.offset;
+        this.fieldMarshaledSizesSize = this.fieldMarshaledSizes.size;
+    } else {
+        this.fieldMarshaledSizesOffset = reader.readInt() // Il2CppFieldMarshaledSize
+        this.fieldMarshaledSizesSize = reader.readInt()
+        // forward-compatible
+        this.fieldMarshaledSizes = new Il2CppSectionMetadata(reader, version);
+        this.fieldMarshaledSizes.offset = this.fieldMarshaledSizesOffset;
+        this.fieldMarshaledSizes.size = this.fieldMarshaledSizesSize;
+    }
+    if (this.version >= 38.0) {
+        this.parameters = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.parametersOffset = this.parameters.offset;
+        this.parametersSize = this.parameters.size;
+    } else {
+        this.parametersOffset = reader.readUInt() // Il2CppParameterDefinition
+        this.parametersSize = reader.readInt()
+        // forward-compatible
+        this.parameters = new Il2CppSectionMetadata(reader, version);
+        this.parameters.offset = this.parametersOffset;
+        this.parameters.size = this.parametersSize;
+    }
+    if (this.version >= 38.0) {
+        this.fields = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.fieldsOffset = this.fields.offset;
+        this.fieldsSize = this.fields.size;
+    } else {
+        this.fieldsOffset = reader.readUInt() // Il2CppFieldDefinition
+        this.fieldsSize = reader.readInt()
+        // forward-compatible
+        this.fields = new Il2CppSectionMetadata(reader, version);
+        this.fields.offset = this.fieldsOffset;
+        this.fields.size = this.fieldsSize;
+    }
+    if (this.version >= 38.0) {
+        this.genericParameters = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.genericParametersOffset = this.genericParameters.offset;
+        this.genericParametersSize = this.genericParameters.size;
+    } else {
+        this.genericParametersOffset = reader.readUInt() // Il2CppGenericParameter
+        this.genericParametersSize = reader.readInt()
+        // forward-compatible
+        this.genericParameters = new Il2CppSectionMetadata(reader, version);
+        this.genericParameters.offset = this.genericParametersOffset;
+        this.genericParameters.size = this.genericParametersSize;
+    }
+    if (this.version >= 38.0) {
+        this.genericParameterConstraints = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.genericParameterConstraintsOffset = this.genericParameterConstraints.offset;
+        this.genericParameterConstraintsSize = this.genericParameterConstraints.size;
+    } else {
+        this.genericParameterConstraintsOffset = reader.readUInt() // TypeIndex
+        this.genericParameterConstraintsSize = reader.readInt()
+        // forward-compatible
+        this.genericParameterConstraints = new Il2CppSectionMetadata(reader, version);
+        this.genericParameterConstraints.offset = this.genericParameterConstraintsOffset;
+        this.genericParameterConstraints.size = this.genericParameterConstraintsSize;
+    }
+    if (this.version >= 38.0) {
+        this.genericContainers = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.genericContainersOffset = this.genericContainers.offset;
+        this.genericContainersSize = this.genericContainers.size;
+    } else {
+        this.genericContainersOffset = reader.readUInt() // Il2CppGenericContainer
+        this.genericContainersSize = reader.readInt()
+        // forward-compatible
+        this.genericContainers = new Il2CppSectionMetadata(reader, version);
+        this.genericContainers.offset = this.genericContainersOffset;
+        this.genericContainers.size = this.genericContainersSize;
+    }
+    if (this.version >= 38.0) {
+        this.nestedTypes = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.nestedTypesOffset = this.nestedTypes.offset;
+        this.nestedTypesSize = this.nestedTypes.size;
+    } else {
+        this.nestedTypesOffset = reader.readUInt() // Il2CppTypeDefinitionIndex
+        this.nestedTypesSize = reader.readInt()
+        // forward-compatible
+        this.nestedTypes = new Il2CppSectionMetadata(reader, version);
+        this.nestedTypes.offset = this.nestedTypesOffset;
+        this.nestedTypes.size = this.nestedTypesSize;
+    }
+    if (this.version >= 38.0) {
+        this.interfaces = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.interfacesOffset = this.interfaces.offset;
+        this.interfacesSize = this.interfaces.size;
+    } else {
+        this.interfacesOffset = reader.readUInt() // TypeIndex
+        this.interfacesSize = reader.readInt()
+        // forward-compatible
+        this.interfaces = new Il2CppSectionMetadata(reader, version);
+        this.interfaces.offset = this.interfacesOffset;
+        this.interfaces.size = this.interfacesSize;
+    }
+    if (this.version >= 38.0) {
+        this.vtableMethods = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.vtableMethodsOffset = this.vtableMethods.offset;
+        this.vtableMethodsSize = this.vtableMethods.size;
+    } else {
+        this.vtableMethodsOffset = reader.readUInt() // EncodedMethodIndex
+        this.vtableMethodsSize = reader.readInt()
+        // forward-compatible
+        this.vtableMethods = new Il2CppSectionMetadata(reader, version);
+        this.vtableMethods.offset = this.vtableMethodsOffset;
+        this.vtableMethods.size = this.vtableMethodsSize;
+    }
+    if (this.version >= 38.0) {
+        this.interfaceOffsets = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.interfaceOffsetsOffset = this.interfaceOffsets.offset;
+        this.interfaceOffsetsSize = this.interfaceOffsets.size;
+    } else {
+        this.interfaceOffsetsOffset = reader.readInt(); // Il2CppInterfaceOffsetPair
+        this.interfaceOffsetsSize = reader.readInt();
+        // forward-compatible
+        this.interfaceOffsets = new Il2CppSectionMetadata(reader, version);
+        this.interfaceOffsets.offset = this.interfaceOffsetsOffset;
+        this.interfaceOffsets.size = this.interfaceOffsetsSize;
+    }
+    if (this.version >= 38.0) {
+        this.typeDefinitions = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.typeDefinitionsOffset = this.typeDefinitions.offset;
+        this.typeDefinitionsSize = this.typeDefinitions.size;
+    } else {
+        this.typeDefinitionsOffset = reader.readUInt() // Il2CppIl2CppTypeDefinition
+        this.typeDefinitionsSize = reader.readInt()
+        // forward-compatible
+        this.typeDefinitions = new Il2CppSectionMetadata(reader, version);
+        this.typeDefinitions.offset = this.typeDefinitionsOffset;
+        this.typeDefinitions.size = this.typeDefinitionsSize;
     }
     if (this.version <= 24.1) {
         this.rgctxEntriesOffset = reader.readUInt() // Il2CppRGCTXDefinition
         this.rgctxEntriesCount = reader.readInt()
+    } else {
+        this.rgctxEntriesOffset = undefined;
+        this.rgctxEntriesCount = undefined;
     }
-    this.imagesOffset = reader.readUInt() // Il2CppImageDefinition
-    this.imagesSize = reader.readInt()
-    this.assembliesOffset = reader.readUInt() // Il2CppAssemblyDefinition
-    this.assembliesSize = reader.readInt()
+    if (this.version >= 38.0) {
+        this.images = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.imagesOffset = this.images.offset;
+        this.imagesSize = this.images.size;
+    } else {
+        this.imagesOffset = reader.readUInt() // Il2CppImageDefinition
+        this.imagesSize = reader.readInt()
+        // forward-compatible
+        this.images = new Il2CppSectionMetadata(reader, version);
+        this.images.offset = this.imagesOffset;
+        this.images.size = this.imagesSize;
+    }
+    if (this.version >= 38.0) {
+        this.assemblies = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.assembliesOffset = this.assemblies.offset;
+        this.assembliesSize = this.assemblies.size;
+    } else {
+        this.assembliesOffset = reader.readUInt() // Il2CppIl2CppAssemblyDefinition
+        this.assembliesSize = reader.readInt()
+        // forward-compatible
+        this.assemblies = new Il2CppSectionMetadata(reader, version);
+        this.assemblies.offset = this.assembliesOffset;
+        this.assemblies.size = this.assembliesSize;
+    }
     if (19 <= this.version && this.version <= 24.5) {
         this.metadataUsageListsOffset = reader.readUInt() // Il2CppMetadataUsageList
         this.metadataUsageListsCount = reader.readInt()
         this.metadataUsagePairsOffset = reader.readUInt() // Il2CppMetadataUsagePair
         this.metadataUsagePairsCount = reader.readInt()
+    } else {
+        this.metadataUsageListsOffset = undefined;
+        this.metadataUsageListsCount = undefined;
+        this.metadataUsagePairsOffset = undefined;
+        this.metadataUsagePairsCount = undefined;
     }
-    if (19 <= this.version) {
+    if (this.version >= 38.0) {
+        this.fieldRefs = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.fieldRefsOffset = this.fieldRefs.offset;
+        this.fieldRefsSize = this.fieldRefs.size;
+    } else if (this.version >= 19) {
         this.fieldRefsOffset = reader.readUInt() // Il2CppFieldRef
-        this.fieldRefsSize = reader.readInt()
+        this.fieldRefsSize = reader.readInt();
+        // forward-compatible
+        this.fieldRefs = new Il2CppSectionMetadata(reader, version);
+        this.fieldRefs.offset = this.fieldRefsOffset;
+        this.fieldRefs.size = this.fieldRefsSize;
+    } else {
+        this.fieldRefsOffset = undefined;
+        this.fieldRefsSize = undefined;
+        this.fieldRefs = new Il2CppSectionMetadata(reader, version);
     }
-    if (20 <= this.version) {
+    if (this.version >= 38.0) {
+        this.referencedAssemblies = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.referencedAssembliesOffset = this.referencedAssemblies.offset;
+        this.referencedAssembliesSize = this.referencedAssemblies.size;
+    } else if (this.version >= 20) {
         this.referencedAssembliesOffset = reader.readInt() // int32_t
         this.referencedAssembliesSize = reader.readInt()
+        // forward-compatible
+        this.referencedAssemblies = new Il2CppSectionMetadata(reader, version);
+        this.referencedAssemblies.offset = this.referencedAssembliesOffset;
+        this.referencedAssemblies.size = this.referencedAssembliesSize;
+    } else {
+        this.referencedAssembliesOffset = undefined;
+        this.referencedAssembliesSize = undefined;
+        this.referencedAssemblies = new Il2CppSectionMetadata(reader, version);
     }
-    if (21 <= this.version && this.version <= 27.2) {
+    if (this.version >= 21 && this.version <= 27.2) {
         this.attributesInfoOffset = reader.readUInt() // Il2CppCustomAttributeTypeRange
         this.attributesInfoCount = reader.readInt()
         this.attributeTypesOffset = reader.readUInt() // TypeIndex
         this.attributeTypesCount = reader.readInt()
+    } else {
+        this.attributesInfoOffset = undefined;
+        this.attributesInfoCount = undefined;
+        this.attributeTypesOffset = undefined;
+        this.attributeTypesCount = undefined;
     }
-    if (29 <= this.version) {
-        this.attributeDataOffset = reader.readUInt()
-        this.attributeDataSize = reader.readInt()
-        this.attributeDataRangeOffset = reader.readUInt()
-        this.attributeDataRangeSize = reader.readInt()
+    if (this.version >= 38.0) {
+        this.attributeData = new Il2CppSectionMetadata(reader, version);
+        this.attributeDataRanges = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.attributeDataOffset = this.attributeData.offset;
+        this.attributeDataSize = this.attributeData.size;
+        this.attributeDataRangeOffset = this.attributeDataRanges.offset;
+        this.attributeDataRangeSize = this.attributeDataRanges.size;
+    } else if (this.version >= 29) {
+        this.attributeDataOffset = reader.readUInt();
+        this.attributeDataSize = reader.readInt();
+        this.attributeDataRangeOffset = reader.readUInt();
+        this.attributeDataRangeSize = reader.readInt();
+        // forward-compatible
+        this.attributeData = new Il2CppSectionMetadata(reader, version);
+        this.attributeData.offset = this.attributeDataOffset;
+        this.attributeData.size = this.attributeDataSize;
+        this.attributeDataRanges = new Il2CppSectionMetadata(reader, version);
+        this.attributeDataRanges.offset = this.attributeDataRangeOffset;
+        this.attributeDataRanges.size = this.attributeDataRangeSize;
     }
-    if (22 <= this.version) {
+    if (this.version >= 38.0) {
+        this.unresolvedIndirectCallParameterTypes = new Il2CppSectionMetadata(reader, version); // TypeIndex
+        this.unresolvedIndirectCallParameterRanges = new Il2CppSectionMetadata(reader, version); // Il2CppMetadataRange
+        // backward-compatible
+        this.unresolvedVirtualCallParameterTypesOffset = this.unresolvedIndirectCallParameterTypes.offset;
+        this.unresolvedVirtualCallParameterTypesSize = this.unresolvedIndirectCallParameterTypes.size;
+        this.unresolvedVirtualCallParameterRangesOffset = this.unresolvedIndirectCallParameterRanges.offset;
+        this.unresolvedVirtualCallParameterRangesSize = this.unresolvedIndirectCallParameterRanges.size;
+    } else if (this.version >= 22) {
         this.unresolvedVirtualCallParameterTypesOffset = reader.readInt() // TypeIndex
         this.unresolvedVirtualCallParameterTypesSize = reader.readInt()
         this.unresolvedVirtualCallParameterRangesOffset = reader.readInt() // Il2CppRange
-        this.unresolvedVirtualCallParameterRangesSize = reader.readInt()
+        this.unresolvedVirtualCallParameterRangesSize = reader.readInt();
+        // forward-compatible
+        this.unresolvedIndirectCallParameterTypes = new Il2CppSectionMetadata(reader, version);
+        this.unresolvedIndirectCallParameterTypes.offset = this.unresolvedVirtualCallParameterTypesOffset;
+        this.unresolvedIndirectCallParameterTypes.size = this.unresolvedVirtualCallParameterTypesSize;
+        this.unresolvedIndirectCallParameterRanges = new Il2CppSectionMetadata(reader, version);
+        this.unresolvedIndirectCallParameterRanges.offset = this.unresolvedVirtualCallParameterRangesOffset;
+        this.unresolvedIndirectCallParameterRanges.size = this.unresolvedVirtualCallParameterRangesSize;
     }
-    if (23 <= this.version) {
+    if (this.version >= 38.0) {
+        this.windowsRuntimeTypeNames = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.windowsRuntimeTypeNamesOffset = this.windowsRuntimeTypeNames.offset;
+        this.windowsRuntimeTypeNamesSize = this.windowsRuntimeTypeNames.size;
+    } else if (this.version >= 23) {
         this.windowsRuntimeTypeNamesOffset = reader.readInt() // Il2CppWindowsRuntimeTypeNamePair
         this.windowsRuntimeTypeNamesSize = reader.readInt()
+        // forward-compatible
+        this.windowsRuntimeTypeNames = new Il2CppSectionMetadata(reader, version);
+        this.windowsRuntimeTypeNames.offset = this.windowsRuntimeTypeNamesOffset;
+        this.windowsRuntimeTypeNames.size = this.windowsRuntimeTypeNamesSize;
     }
-    if (27 <= this.version) {
+    if (this.version >= 38.0) {
+        this.windowsRuntimeStrings = new Il2CppSectionMetadata(reader, version);
+        // backward-compatible
+        this.windowsRuntimeStringsOffset = this.windowsRuntimeStrings.offset;
+        this.windowsRuntimeStringsSize = this.windowsRuntimeStrings.size;
+    } else if (this.version >= 27) {
         this.windowsRuntimeStringsOffset = reader.readInt() // const char*
         this.windowsRuntimeStringsSize = reader.readInt()
+        // forward-compatible
+        this.windowsRuntimeStrings = new Il2CppSectionMetadata(reader, version);
+        this.windowsRuntimeStrings.offset = this.windowsRuntimeStringsOffset;
+        this.windowsRuntimeStrings.size = this.windowsRuntimeStringsSize;
     }
-    if (24 <= this.version) {
+    if (this.version >= 38.0) {
+        this.exportedTypeDefinitions = new Il2CppSectionMetadata(reader, version); // TypeDefinitionIndex
+        // backward-compatible
+        this.exportedIl2CppTypeDefinitionsOffset = this.exportedTypeDefinitions.offset;
+        this.exportedIl2CppTypeDefinitionsSize = this.exportedTypeDefinitions.size;
+    } else if (this.version >= 24) {
         this.exportedIl2CppTypeDefinitionsOffset = reader.readInt() // Il2CppTypeDefinitionIndex
-        this.exportedIl2CppTypeDefinitionsSize = reader.readInt()
+        this.exportedIl2CppTypeDefinitionsSize = reader.readInt();
+        // forward-compatible
+        this.exportedTypeDefinitions = new Il2CppSectionMetadata(reader, version);
+        this.exportedTypeDefinitions.offset = this.exportedIl2CppTypeDefinitionsOffset;
+        this.exportedTypeDefinitions.size = this.exportedIl2CppTypeDefinitionsSize;
     }
 }
-function AssemblyDefinition(reader, version) {
+
+function readIndex(reader, size) {
+    if (size === 1) return reader.readByte();
+    if (size === 2) return reader.readUShort();
+    if (size === 4) return reader.readUInt();
+}
+
+
+function Il2CppAssemblyDefinition(reader, version) {
     this.imageIndex = reader.readInt();
     if (version >= 24.1) {
         this.token = reader.readUInt();
@@ -722,13 +1148,16 @@ function AssemblyDefinition(reader, version) {
     if (version <= 24) {
         this.customAttributeIndex = reader.readInt();
     }
+    if (version >= 38.0) {
+        this.moduleToken = reader.readUInt();
+    }
     if (version >= 20) {
         this.referencedAssemblyStart = reader.readInt();
         this.referencedAssemblyCount = reader.readInt();
     }
-    this.aname = new AssemblyNameDefinition(reader, version);
+    this.aname = new Il2CppAssemblyNameDefinition(reader, version);
 }
-function AssemblyNameDefinition(reader, version) {
+function Il2CppAssemblyNameDefinition(reader, version) {
     this.nameIndex = reader.readUInt();
     this.cultureIndex = reader.readUInt();
     if (version <= 24.3) {
@@ -744,17 +1173,24 @@ function AssemblyNameDefinition(reader, version) {
     this.revision = reader.readInt();
     this.public_key_token = reader.read(8);
 }
-function Il2CppImageDefinition(reader, version) {
+function Il2CppImageDefinition(reader, version, sizes) { // renamed to Il2CppImageGlobalMetadata
     this.nameIndex = reader.readUInt();
     this.assemblyIndex = reader.readInt();
-    this.typeStart = reader.readInt();
+    if (version >= 38.0) {
+        this.typeStart = readIndex(reader, sizes.typeDefinitionIndex);
+    } else {
+        this.typeStart = reader.readInt();
+    };
     this.typeCount = reader.readUInt();
-    if (version >= 24) {
+    if (version >= 38.0) {
+        this.exportedTypeStart = readIndex(reader, sizes.typeDefinitionIndex);
+        this.exportedTypeCount = reader.readUInt();
+    } else if (version >= 24.0) {
         this.exportedTypeStart = reader.readInt();
         this.exportedTypeCount = reader.readUInt();
     }
     this.entryPointIndex = reader.readInt();
-    if (version >= 19) {
+    if (version >= 19.0) {
         this.token = reader.readUInt();
     }
     if (version >= 24.1) {
@@ -762,25 +1198,40 @@ function Il2CppImageDefinition(reader, version) {
         this.customAttributeCount = reader.readUInt();
     }
 }
-function Il2CppTypeDefinition(reader, version) {
+function Il2CppTypeDefinition(reader, version, sizes) {
     
     this.nameIndex = reader.readUInt();
     this.namespaceIndex = reader.readUInt();
     if (version <= 24) {
         this.customAttributeIndex = reader.readInt();
     }
-    this.byvalTypeIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.byvalTypeIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.byvalTypeIndex = reader.readInt();
+    }
     if (version <= 24.5) {
         this.byrefTypeIndex = reader.readInt();
     }
-    this.declaringTypeIndex = reader.readInt();
-    this.parentIndex = reader.readInt();
-    this.elementTypeIndex = reader.readInt(); // we can probably remove this one. Only used for enums
+    if (version >= 38.0) {
+        this.declaringTypeIndex = readIndex(reader, sizes.typeIndex);
+        this.parentIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.declaringTypeIndex = reader.readInt();
+        this.parentIndex = reader.readInt();
+    }
+    if (version < 38.0) {
+        this.elementTypeIndex = reader.readInt(); // we can probably remove this one. Only used for enums
+    }
     if (version <= 24.1) {
         this.rgctxStartIndex = reader.readInt();
         this.rgctxCount = reader.readInt();
     }
-    this.genericContainerIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.genericContainerIndex = readIndex(reader, sizes.genericContainerIndex);
+    } else {
+        this.genericContainerIndex = reader.readInt();
+    }
     if (version <= 22) {
         this.delegateWrapperFromManagedToNativeIndex = reader.readInt();
         this.marshalingFunctionsIndex = reader.readInt();
@@ -825,18 +1276,34 @@ function Il2CppTypeDefinition(reader, version) {
     this.IsEnum = (this.bitfield >> 1) & 0x1 === 1;
 }
 
-function Il2CppMethodDefinition(reader, version) {
+function Il2CppMethodDefinition(reader, version, sizes) {
     this.nameIndex = reader.readUInt();
-    this.declaringType = reader.readInt();
-    this.returnType = reader.readInt();
+    if (version >= 38.0) {
+        this.declaringType = readIndex(reader, sizes.typeDefinitionIndex);
+    } else {
+        this.declaringType = reader.readInt();
+    }
+    if (version >= 38.0) {
+        this.returnType = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.returnType = reader.readInt();
+    }
     if (version >= 31) {
         this.returnParameterToken = reader.readInt();
     }
-    this.parameterStart = reader.readInt();
+    if (version >= 38.0) {
+        this.parameterStart = readIndex(reader, sizes.parameterIndex);
+    } else {
+        this.parameterStart = reader.readInt();
+    }
     if (version <= 24) {
         this.customAttributeIndex = reader.readInt();
     }
-    this.genericContainerIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.genericContainerIndex = readIndex(reader, sizes.genericContainerIndex);
+    } else {
+        this.genericContainerIndex = reader.readInt();
+    }
     if (version <= 24.1) {
         this.methodIndex = reader.readInt();
         this.invokerIndex = reader.readInt();
@@ -851,18 +1318,26 @@ function Il2CppMethodDefinition(reader, version) {
     this.parameterCount = reader.readUShort();
 }
 
-function Il2CppParameterDefinition(reader, version) {
+function Il2CppParameterDefinition(reader, version, sizes) {
     this.nameIndex = reader.readUInt();
     this.token = reader.readUInt();
     if (version <= 24) {
         this.customAttributeIndex = reader.readInt();
     }
-    this.typeIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.typeIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.typeIndex = reader.readInt();
+    }
 }
 
-function Il2CppFieldDefinition(reader, version) {
+function Il2CppFieldDefinition(reader, version, sizes) {
     this.nameIndex = reader.readUInt();
-    this.typeIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.typeIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.typeIndex = reader.readInt();
+    }
     if (version <= 24) {
         this.customAttributeIndex = reader.readInt();
     }
@@ -871,9 +1346,13 @@ function Il2CppFieldDefinition(reader, version) {
     }
 }
 
-function Il2CppFieldDefaultValue(reader, version) {
+function Il2CppFieldDefaultValue(reader, version, sizes) {
     this.fieldIndex = reader.readInt();
-    this.typeIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.typeIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.typeIndex = reader.readInt();
+    }
     this.dataIndex = reader.readInt();
 }
 
@@ -909,19 +1388,29 @@ function Il2CppMetadataUsagePair(reader, version) {
 }
 
 function Il2CppStringLiteral(reader, version) {
-    this.length = reader.readUInt();
+    if (version < 38.0) {
+        this.length = reader.readUInt();
+    };
     this.dataIndex = reader.readInt();
 }
 
-function Il2CppParameterDefaultValue(reader, version) {
+function Il2CppParameterDefaultValue(reader, version, sizes) {
     this.parameterIndex = reader.readInt();
-    this.typeIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.typeIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.typeIndex = reader.readInt();
+    }
     this.dataIndex = reader.readInt();
 }
 
-function Il2CppEventDefinition(reader, version) {
+function Il2CppEventDefinition(reader, version, sizes) {
     this.nameIndex = reader.readUInt();
-    this.typeIndex = reader.readInt();
+    if (version >= 38.0) {
+        this.typeIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.typeIndex = reader.readInt();
+    }
     this.add = reader.readInt();
     this.remove = reader.readInt();
     this.raise = reader.readInt();
@@ -943,13 +1432,21 @@ function Il2CppGenericContainer(reader, version) {
     this.genericParameterStart = reader.readInt();
 }
 
-function Il2CppFieldRef(reader, version) {
-    this.typeIndex = reader.readInt();
+function Il2CppFieldRef(reader, version, sizes) {
+    if (version >= 38.0) {
+        this.typeIndex = readIndex(reader, sizes.typeIndex);
+    } else {
+        this.typeIndex = reader.readInt();
+    }
     this.fieldIndex = reader.readInt(); // local offset into type fields
 }
 
-function Il2CppGenericParameter(reader, version) {
-    this.ownerIndex = reader.readInt();  /* Type or method this parameter was defined in. */
+function Il2CppGenericParameter(reader, version, sizes) {
+    if (version >= 38.0) {
+        this.ownerIndex = readIndex(reader, sizes.genericContainerIndex);
+    } else {
+        this.ownerIndex = reader.readInt();  /* Type or method this parameter was defined in. */
+    }
     this.nameIndex = reader.readUInt();
     this.constraintsStart = reader.readShort();
     this.constraintsCount = reader.readShort();
@@ -966,7 +1463,7 @@ const Il2CppRGCTXDataType = [
     'IL2CPP_RGCTX_DATA_CONSTRAINED'
 ];
 
-function RGCTXDefinitionData(reader, version) {
+function Il2CppRGCTXDefinitionData(reader, version) {
     this.rgctxDataDummy = reader.readInt();
     this.methodIndex = this.rgctxDataDummy;
     this.typeIndex = this.rgctxDataDummy;
@@ -981,7 +1478,7 @@ function Il2CppRGCTXDefinition(reader, version) {
     }
     this.type = Il2CppRGCTXDataType[this.type_post29 === 0 ? this.type_pre29 : this.type_post29];
     if (version <= 27.1) {
-        this.data = new RGCTXDefinitionData(reader, version);
+        this.data = new Il2CppRGCTXDefinitionData(reader, version);
     }
     if (version >= 27.2) {
         this._data = reader.readInt(); reader.readInt();
