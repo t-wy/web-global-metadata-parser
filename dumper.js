@@ -160,6 +160,9 @@ function dump_typedef(entry) {
         "Write": function(str, color) {
             // console.log(...str);
             // parts.push(str);
+            if (Object.is(str, -0)) {
+                str = "-0"; // otherwise -0 will be printed as 0
+            };
             if (color === undefined) {
                 parts.appendChild(document.createTextNode(str));
             } else {
