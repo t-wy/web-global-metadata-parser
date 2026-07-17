@@ -1134,9 +1134,21 @@ function Il2CppGlobalMetadataHeader(reader, version) {
 }
 
 function readIndex(reader, size) {
-    if (size === 1) return reader.readByte();
-    if (size === 2) return reader.readUShort();
-    if (size === 4) return reader.readUInt();
+    var temp, value;
+    if (size === 1) {
+        temp = 255;
+        value = reader.readByte();
+    };
+    if (size === 2) {
+        temp = 65535;
+        value = reader.readUShort();
+    };
+    if (size === 4) {
+        temp = 4294967295;
+        value = reader.readUInt();
+    };
+    if (value === temp) return -1;
+    return value;
 }
 
 
