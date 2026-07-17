@@ -609,6 +609,7 @@ function WriteModifiers(writer, methodDef)
 
 function GetDefaultValue(metadata, typeIndex, dataIndex) {
     var defaultValueType = metadata.knownTypes[typeIndex];
+    // console.log(typeIndex, defaultValueType);
     if (defaultValueType === undefined) {
         return "???";
     }
