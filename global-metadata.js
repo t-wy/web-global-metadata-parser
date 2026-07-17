@@ -226,7 +226,7 @@ function GlobalMetadata(reader) {
                 }
                 var typeIndex = null;
                 if (propertyDef.get >= 0) {
-                    var methodDef = this.methodDefinitions[typeDef.methodStart + propertyDef.set];
+                    var methodDef = this.methodDefinitions[typeDef.methodStart + propertyDef.get];
                     typeIndex = methodDef.returnType;
                 } else if (propertyDef.set >= 0) {
                     var methodDef = this.methodDefinitions[typeDef.methodStart + propertyDef.set];
