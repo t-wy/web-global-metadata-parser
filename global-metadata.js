@@ -195,6 +195,12 @@ function GlobalMetadata(reader) {
         console.log("Resolved Type: " + typeIndex + " -> " + targetType[1]);
     }
     for (var typeDef of this.typeDefinitions) {
+        if (typeDef.byvalTypeIndex >= 0) {
+            addType(typeDef.byvalTypeIndex, ["", typeDef.name, false]);
+        };
+        if (typeDef.elementTypeIndex !== undefined && typeDef.elementTypeIndex >= 0) {
+            addType(typeDef.elementTypeIndex, ["", typeDef.name, false]);
+        };
         var knownTypeLocationType = knownTypeLocation[typeDef.namespace];
         if (knownTypeLocationType === undefined) {
             continue;
