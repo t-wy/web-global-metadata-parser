@@ -301,22 +301,28 @@ function GlobalMetadata(reader) {
             this.metadataUsageLists = read_class_array(reader, this.header.metadataUsageListsOffset, this.header.metadataUsageListsCount, Il2CppMetadataUsageList);
             this.metadataUsagePairs = read_class_array(reader, this.header.metadataUsagePairsOffset, this.header.metadataUsagePairsCount, Il2CppMetadataUsagePair);
             this.metadataUsageDict = {}
-            for (var i = 0; i < 6; ++i) {
+            for (var i = 0; i < Il2CppMetadataUsage.length; ++i) {
                 this.metadataUsageDict[Il2CppMetadataUsage[i]] = {};
             }
             for (var entry of this.metadataUsageLists) {
                 for (var i = 0; i < entry.count; ++i) {
                     var offset = entry.start + i;
-                    if (offset > self.metadataUsagePairs.length) {
+                    if (offset >= this.metadataUsagePairs.length) {
                         continue;
                     }
-                    var metadataUsagePair = self.metadataUsagePairs[offset];
+                    var metadataUsagePair = this.metadataUsagePairs[offset];
                     var usage = Il2CppMetadataUsage[((metadataUsagePair.encodedSourceIndex) & 0xE0000000) >>> 29];
                     var decodedIndex = (metadataUsagePair.encodedSourceIndex & 0x1FFFFFFF) >>> (this.header.version >= 27);
                     this.metadataUsageDict[usage][metadataUsagePair.destinationIndex] = decodedIndex;
                 }
             }
-            self.metadataUsageCount = Object.entries(this.metadataUsageDict).filter(([_, value]) => Object.keys(value).length > 0).reduce(([key, _], [key2, __]) => key2 > key ? key2 : key, [0, 0])[0] + 1;
+            this.metadataUsageCount = Object.values(this.metadataUsageDict).map(
+                dict => Object.keys(dict).reduce(
+                    (current, key) => +key > current ? +key : current, 0
+                )
+            ).reduce(
+                (current, representative) => representative > current ? representative : current, 0
+            ) + 1;
         }
     }
     if (this.header.version > 20 && this.header.version < 29) {
